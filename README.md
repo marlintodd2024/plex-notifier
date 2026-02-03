@@ -46,7 +46,7 @@ Email Notifications → Users
 
 ```bash
 # Clone the repository
-git clone <your-repo-url>
+git clone https://github.com/marlintodd2024/plex-notifier
 cd plex-notification-portal
 
 # Copy environment template
