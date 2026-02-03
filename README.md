@@ -10,6 +10,7 @@ A notification service that monitors Sonarr/Radarr downloads and sends email not
 - 📧 **Email notifications** - Beautiful HTML email templates
 - 🔄 **Automatic syncing** - Keeps track of all user requests and content availability
 - 🎯 **Smart tracking** - Prevents duplicate notifications and tracks notification history
+- 📥 **Existing episode import** - Automatically imports already-downloaded episodes from Sonarr to prevent notification spam for old episodes
 
 ## How It Works
 
@@ -17,6 +18,23 @@ A notification service that monitors Sonarr/Radarr downloads and sends email not
 2. **Sonarr** sends webhooks when TV episodes are downloaded
 3. **Radarr** sends webhooks when movies are downloaded
 4. **Notification Portal** matches downloads to user requests and sends email notifications
+
+### Existing Episode Import
+
+When you sync requests from Jellyseerr, the system automatically:
+
+1. **Checks Sonarr** for each TV show request to see what episodes are already downloaded
+2. **Creates tracking records** for existing episodes marked as "already notified" 
+3. **Prevents spam** by not sending notifications for episodes that were downloaded before the portal was set up
+4. **Only notifies** about NEW episodes that download after the sync
+
+**Example scenario:**
+- User requests "Breaking Bad" Season 1 in Jellyseerr (6 months ago)
+- Episodes 1-8 are already in Sonarr/Plex
+- You set up the notification portal today
+- Portal imports episodes 1-8 as "already notified"
+- Episode 9 downloads tomorrow → User gets an email notification ✅
+- No spam about old episodes 1-8 ❌
 
 ## Architecture
 
@@ -46,7 +64,7 @@ Email Notifications → Users
 
 ```bash
 # Clone the repository
-git clone https://github.com/marlintodd2024/plex-notifier
+git clone <your-repo-url>
 cd plex-notification-portal
 
 # Copy environment template
@@ -154,7 +172,9 @@ curl http://localhost:8000/health
 
 ### Admin (Manual Operations)
 - `POST /admin/sync/users` - Manually sync users from Jellyseerr
-- `POST /admin/sync/requests` - Manually sync requests from Jellyseerr
+- `POST /admin/sync/requests` - Manually sync requests from Jellyseerr (also imports existing episodes)
+- `POST /admin/requests/{request_id}/import-episodes` - Import existing episodes for a specific TV show request
+- `POST /admin/import-all-existing-episodes` - Import existing episodes for ALL TV show requests
 - `POST /admin/notifications/process` - Process pending notifications
 - `GET /admin/stats` - Get system statistics
 - `GET /admin/users` - List all users
@@ -176,8 +196,14 @@ curl http://localhost:8000/health
 # Sync users from Jellyseerr
 curl -X POST http://localhost:8000/admin/sync/users
 
-# Sync requests from Jellyseerr
+# Sync requests from Jellyseerr (automatically imports existing episodes)
 curl -X POST http://localhost:8000/admin/sync/requests
+
+# Import existing episodes for ALL TV shows (useful for initial setup)
+curl -X POST http://localhost:8000/admin/import-all-existing-episodes
+
+# Import existing episodes for a specific request (replace 123 with request ID)
+curl -X POST http://localhost:8000/admin/requests/123/import-episodes
 
 # Process pending notifications
 curl -X POST http://localhost:8000/admin/notifications/process

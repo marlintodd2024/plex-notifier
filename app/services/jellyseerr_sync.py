@@ -4,7 +4,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database import User, MediaRequest, get_db
+from app.database import User, MediaRequest, EpisodeTracking, get_db
 from app.schemas import JellyseerrUser, JellyseerrRequest
 
 logger = logging.getLogger(__name__)
@@ -96,6 +96,10 @@ class JellyseerrSyncService:
         synced_count = 0
         
         try:
+            # Import SonarrService for episode checking
+            from app.services.sonarr_service import SonarrService
+            sonarr = SonarrService()
+            
             for request_data in requests_data:
                 jellyseerr_request_id = request_data.get("id")
                 existing_request = db.query(MediaRequest).filter(
@@ -123,6 +127,7 @@ class JellyseerrSyncService:
                 if existing_request:
                     # Update existing request
                     existing_request.status = status
+                    request_to_check = existing_request
                 else:
                     # Create new request
                     season_count = None
@@ -139,6 +144,17 @@ class JellyseerrSyncService:
                         season_count=season_count
                     )
                     db.add(new_request)
+                    db.flush()  # Get the ID for the new request
+                    request_to_check = new_request
+                
+                # For TV shows, check Sonarr for existing episodes
+                if media_type == "tv":
+                    await self._import_existing_episodes(
+                        db, 
+                        request_to_check, 
+                        media.get("tmdbId"),
+                        sonarr
+                    )
                 
                 synced_count += 1
             
@@ -149,3 +165,71 @@ class JellyseerrSyncService:
             logger.error(f"Error syncing requests: {e}")
         finally:
             db.close()
+    
+    async def _import_existing_episodes(self, db, request: MediaRequest, tmdb_id: int, sonarr):
+        """Import existing episodes from Sonarr for a TV show request"""
+        try:
+            # Find the series in Sonarr by TMDB ID
+            series = await sonarr.get_series_by_tmdb(tmdb_id)
+            
+            if not series:
+                logger.info(f"Series with TMDB ID {tmdb_id} not found in Sonarr")
+                return
+            
+            series_id = series.get("id")
+            logger.info(f"Found series '{series.get('title')}' (ID: {series_id}) in Sonarr")
+            
+            # Get all episodes for this series
+            episodes = await sonarr.get_episodes_by_series(series_id)
+            
+            if not episodes:
+                logger.info(f"No episodes found for series ID {series_id}")
+                return
+            
+            imported_count = 0
+            for episode in episodes:
+                # Only track episodes that have an episode file (downloaded)
+                if not episode.get("hasFile"):
+                    continue
+                
+                season_number = episode.get("seasonNumber")
+                episode_number = episode.get("episodeNumber")
+                
+                # Check if we're already tracking this episode
+                existing_tracking = db.query(EpisodeTracking).filter(
+                    EpisodeTracking.series_id == series_id,
+                    EpisodeTracking.season_number == season_number,
+                    EpisodeTracking.episode_number == episode_number
+                ).first()
+                
+                if existing_tracking:
+                    continue  # Already tracked
+                
+                # Create episode tracking record
+                from datetime import datetime
+                
+                air_date = None
+                if episode.get("airDateUtc"):
+                    try:
+                        air_date = datetime.fromisoformat(episode.get("airDateUtc").replace('Z', '+00:00'))
+                    except:
+                        pass
+                
+                episode_tracking = EpisodeTracking(
+                    request_id=request.id,
+                    series_id=series_id,
+                    season_number=season_number,
+                    episode_number=episode_number,
+                    episode_title=episode.get("title"),
+                    air_date=air_date,
+                    notified=True,  # Mark as already notified to prevent spam
+                    available_in_plex=True
+                )
+                db.add(episode_tracking)
+                imported_count += 1
+            
+            if imported_count > 0:
+                logger.info(f"Imported {imported_count} existing episodes for '{series.get('title')}'")
+            
+        except Exception as e:
+            logger.error(f"Error importing existing episodes for request {request.id}: {e}")

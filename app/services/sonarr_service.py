@@ -53,3 +53,12 @@ class SonarrService:
         except Exception as e:
             logger.error(f"Failed to find series with TMDB ID {tmdb_id}: {e}")
             return None
+    
+    async def get_episodes_by_series(self, series_id: int) -> Optional[list]:
+        """Get all episodes for a series"""
+        try:
+            episodes = await self._get(f"/episode?seriesId={series_id}")
+            return episodes
+        except Exception as e:
+            logger.error(f"Failed to fetch episodes for series {series_id}: {e}")
+            return None

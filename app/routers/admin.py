@@ -137,3 +137,92 @@ async def list_notifications(
             for n in notifications
         ]
     }
+
+
+@router.post("/requests/{request_id}/import-episodes")
+async def import_existing_episodes(request_id: int, db: Session = Depends(get_db)):
+    """Manually import existing episodes from Sonarr for a specific TV show request"""
+    try:
+        # Get the request
+        request = db.query(MediaRequest).filter(MediaRequest.id == request_id).first()
+        
+        if not request:
+            raise HTTPException(status_code=404, detail="Request not found")
+        
+        if request.media_type != "tv":
+            raise HTTPException(status_code=400, detail="Request is not a TV show")
+        
+        # Import existing episodes
+        from app.services.sonarr_service import SonarrService
+        from app.services.jellyseerr_sync import JellyseerrSyncService
+        
+        sonarr = SonarrService()
+        sync_service = JellyseerrSyncService()
+        
+        await sync_service._import_existing_episodes(
+            db, 
+            request, 
+            request.tmdb_id, 
+            sonarr
+        )
+        
+        db.commit()
+        
+        # Get count of imported episodes
+        episode_count = db.query(EpisodeTracking).filter(
+            EpisodeTracking.request_id == request_id
+        ).count()
+        
+        return {
+            "success": True,
+            "message": f"Imported existing episodes for '{request.title}'",
+            "total_episodes_tracked": episode_count
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to import episodes for request {request_id}: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/import-all-existing-episodes")
+async def import_all_existing_episodes(db: Session = Depends(get_db)):
+    """Import existing episodes from Sonarr for ALL TV show requests"""
+    try:
+        from app.services.sonarr_service import SonarrService
+        from app.services.jellyseerr_sync import JellyseerrSyncService
+        
+        sonarr = SonarrService()
+        sync_service = JellyseerrSyncService()
+        
+        # Get all TV show requests
+        tv_requests = db.query(MediaRequest).filter(MediaRequest.media_type == "tv").all()
+        
+        imported_count = 0
+        for request in tv_requests:
+            try:
+                await sync_service._import_existing_episodes(
+                    db,
+                    request,
+                    request.tmdb_id,
+                    sonarr
+                )
+                imported_count += 1
+            except Exception as e:
+                logger.error(f"Failed to import episodes for request {request.id}: {e}")
+                continue
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": f"Imported existing episodes for {imported_count} TV show requests",
+            "processed_requests": imported_count
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to import all existing episodes: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
