@@ -166,6 +166,28 @@
             font-weight: 600;
             color: #e5a00d;
             border-bottom: 2px solid rgba(229, 160, 13, 0.3);
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }
+
+        th:hover {
+            background: rgba(229, 160, 13, 0.15);
+        }
+
+        th.sortable::after {
+            content: ' ⇅';
+            opacity: 0.3;
+        }
+
+        th.sort-asc::after {
+            content: ' ↑';
+            opacity: 1;
+        }
+
+        th.sort-desc::after {
+            content: ' ↓';
+            opacity: 1;
         }
 
         td {
@@ -331,23 +353,23 @@
         <div class="error-message" id="errorMessage"></div>
 
         <div class="stats-grid">
-            <div class="stat-card">
+            <div class="stat-card" style="cursor: pointer;" onclick="switchTab('users')">
                 <div class="stat-label">Total Users</div>
                 <div class="stat-value" id="totalUsers">-</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" style="cursor: pointer;" onclick="switchTab('requests')">
                 <div class="stat-label">Total Requests</div>
                 <div class="stat-value" id="totalRequests">-</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" style="cursor: pointer;" onclick="switchTab('upcoming')">
                 <div class="stat-label">Episodes Tracked</div>
                 <div class="stat-value" id="episodesTracked">-</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" style="cursor: pointer;" onclick="showSentNotifications()">
                 <div class="stat-label">Notifications Sent</div>
                 <div class="stat-value" id="notificationsSent">-</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" style="cursor: pointer;" onclick="showPendingNotifications()">
                 <div class="stat-label">Pending Notifications</div>
                 <div class="stat-value" id="notificationsPending">-</div>
             </div>
@@ -375,11 +397,11 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Username</th>
-                            <th>Email</th>
-                            <th>Jellyseerr ID</th>
-                            <th>Created At</th>
+                            <th class="sortable" onclick="sortTable('users', 'id')">ID</th>
+                            <th class="sortable" onclick="sortTable('users', 'username')">Username</th>
+                            <th class="sortable" onclick="sortTable('users', 'email')">Email</th>
+                            <th class="sortable" onclick="sortTable('users', 'jellyseerr_id')">Jellyseerr ID</th>
+                            <th class="sortable" onclick="sortTable('users', 'created_at')">Created At</th>
                         </tr>
                     </thead>
                     <tbody id="usersTableBody">
@@ -395,12 +417,12 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>User Email</th>
-                            <th>Type</th>
-                            <th>Title</th>
-                            <th>Status</th>
-                            <th>Created At</th>
+                            <th class="sortable" onclick="sortTable('requests', 'id')">ID</th>
+                            <th class="sortable" onclick="sortTable('requests', 'user_email')">User Email</th>
+                            <th class="sortable" onclick="sortTable('requests', 'media_type')">Type</th>
+                            <th class="sortable" onclick="sortTable('requests', 'title')">Title</th>
+                            <th class="sortable" onclick="sortTable('requests', 'status')">Status</th>
+                            <th class="sortable" onclick="sortTable('requests', 'created_at')">Created At</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -417,13 +439,13 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>User Email</th>
-                            <th>Type</th>
-                            <th>Subject</th>
-                            <th>Status</th>
-                            <th>Created At</th>
-                            <th>Sent At</th>
+                            <th class="sortable" onclick="sortTable('notifications', 'id')">ID</th>
+                            <th class="sortable" onclick="sortTable('notifications', 'user_email')">User Email</th>
+                            <th class="sortable" onclick="sortTable('notifications', 'type')">Type</th>
+                            <th class="sortable" onclick="sortTable('notifications', 'subject')">Subject</th>
+                            <th class="sortable" onclick="sortTable('notifications', 'sent')">Status</th>
+                            <th class="sortable" onclick="sortTable('notifications', 'created_at')">Created At</th>
+                            <th class="sortable" onclick="sortTable('notifications', 'sent_at')">Sent At</th>
                         </tr>
                     </thead>
                     <tbody id="notificationsTableBody">
@@ -447,13 +469,13 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>Series</th>
-                            <th>Episode</th>
-                            <th>Title</th>
-                            <th>Air Date</th>
-                            <th>Downloaded</th>
-                            <th>User</th>
-                            <th>Status</th>
+                            <th class="sortable" onclick="sortTable('upcoming', 'series_title')">Series</th>
+                            <th class="sortable" onclick="sortTable('upcoming', 'season_number')">Episode</th>
+                            <th class="sortable" onclick="sortTable('upcoming', 'episode_title')">Title</th>
+                            <th class="sortable" onclick="sortTable('upcoming', 'air_date')">Air Date</th>
+                            <th class="sortable" onclick="sortTable('upcoming', 'has_file')">Downloaded</th>
+                            <th class="sortable" onclick="sortTable('upcoming', 'user_name')">User</th>
+                            <th class="sortable" onclick="sortTable('upcoming', 'already_notified')">Status</th>
                         </tr>
                     </thead>
                     <tbody id="upcomingTableBody">
@@ -494,6 +516,14 @@
         let allRequests = [];
         let allNotifications = [];
         let allUpcoming = [];
+        
+        // Sorting state
+        let sortState = {
+            users: { column: null, direction: 'asc' },
+            requests: { column: null, direction: 'asc' },
+            notifications: { column: null, direction: 'asc' },
+            upcoming: { column: null, direction: 'asc' }
+        };
 
         // API Base URL
         const API_BASE = '';
@@ -807,6 +837,77 @@
             el.textContent = message;
             el.style.display = 'block';
             setTimeout(() => el.style.display = 'none', 5000);
+        }
+
+        function sortTable(tableName, column) {
+            const state = sortState[tableName];
+            
+            // Toggle direction if same column, otherwise default to asc
+            if (state.column === column) {
+                state.direction = state.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                state.column = column;
+                state.direction = 'asc';
+            }
+            
+            // Update header classes
+            document.querySelectorAll(`#${tableName}Tab th`).forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+            });
+            event.target.classList.add(state.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+            
+            // Sort the data
+            let data;
+            if (tableName === 'users') data = allUsers;
+            else if (tableName === 'requests') data = allRequests;
+            else if (tableName === 'notifications') data = allNotifications;
+            else if (tableName === 'upcoming') data = allUpcoming;
+            
+            data.sort((a, b) => {
+                let aVal = a[column];
+                let bVal = b[column];
+                
+                // Handle dates
+                if (column.includes('_at') || column === 'air_date') {
+                    aVal = new Date(aVal || 0);
+                    bVal = new Date(bVal || 0);
+                }
+                
+                // Handle numbers
+                if (typeof aVal === 'number' && typeof bVal === 'number') {
+                    return state.direction === 'asc' ? aVal - bVal : bVal - aVal;
+                }
+                
+                // Handle strings
+                aVal = String(aVal || '').toLowerCase();
+                bVal = String(bVal || '').toLowerCase();
+                
+                if (state.direction === 'asc') {
+                    return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+                } else {
+                    return bVal < aVal ? -1 : bVal > aVal ? 1 : 0;
+                }
+            });
+            
+            // Re-render
+            if (tableName === 'users') renderUsers(data);
+            else if (tableName === 'requests') renderRequests(data);
+            else if (tableName === 'notifications') renderNotifications(data);
+            else if (tableName === 'upcoming') renderUpcoming(data);
+        }
+
+        function showSentNotifications() {
+            switchTab('notifications');
+            // Filter to show only sent notifications
+            const sent = allNotifications.filter(n => n.sent);
+            renderNotifications(sent);
+        }
+
+        function showPendingNotifications() {
+            switchTab('notifications');
+            // Filter to show only pending notifications
+            const pending = allNotifications.filter(n => !n.sent);
+            renderNotifications(pending);
         }
 
         function showTestEmailModal() {
