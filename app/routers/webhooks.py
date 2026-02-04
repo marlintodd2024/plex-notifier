@@ -69,7 +69,6 @@ async def sonarr_webhook(
                 logger.info(f"Notifying {len(users_to_notify)} user(s) for {webhook.series.title} S{episode.seasonNumber:02d}E{episode.episodeNumber:02d}")
                 
                 for user in users_to_notify:
-                for user in users_to_notify:
                     # Track this episode
                     episode_tracking = db.query(EpisodeTracking).filter(
                         EpisodeTracking.request_id == request.id,
