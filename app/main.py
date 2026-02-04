@@ -70,18 +70,26 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/")
 async def root():
-    return {
-        "message": "Plex Notification Portal API",
-        "version": "1.0.0",
-        "docs": "/docs",
-        "admin_dashboard": "/dashboard"
-    }
-
-
-@app.get("/dashboard")
-async def dashboard():
-    """Serve the admin dashboard"""
+    """Serve the admin dashboard at root"""
     static_file = os.path.join(os.path.dirname(__file__), "static", "admin.html")
     if os.path.exists(static_file):
         return FileResponse(static_file)
     return {"error": "Dashboard not found"}
+
+
+@app.get("/api-info")
+async def api_info():
+    return {
+        "message": "Plex Notification Portal API",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "redoc": "/redoc",
+        "dashboard": "/"
+    }
+
+
+@app.get("/dashboard")
+async def dashboard_redirect():
+    """Redirect /dashboard to root for backwards compatibility"""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/", status_code=301)

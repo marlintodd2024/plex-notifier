@@ -195,7 +195,12 @@ curl http://localhost:8000/health
 
 Open your browser and go to:
 ```
-http://localhost:8000/dashboard
+http://localhost:8000
+```
+
+Or from another machine:
+```
+http://your-server-ip:8000
 ```
 
 The dashboard provides:

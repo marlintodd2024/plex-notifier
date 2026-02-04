@@ -99,7 +99,7 @@ curl http://localhost:8000/admin/stats
 
 ## 7. Use the Admin Dashboard
 
-Open http://localhost:8000/dashboard in your browser to:
+Open http://localhost:8000 in your browser to:
 - View all users, requests, and notifications
 - Sync data with one-click buttons  
 - Import existing episodes
@@ -108,7 +108,7 @@ Open http://localhost:8000/dashboard in your browser to:
 
 ## 7. Test It Out
 
-1. Open the admin dashboard: http://localhost:8000/dashboard
+1. Open the admin dashboard: http://localhost:8000
 2. Click "Sync Users" and "Sync Requests"
 3. Request content in Jellyseerr
 4. Download completes in Sonarr/Radarr
