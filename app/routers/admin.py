@@ -144,6 +144,7 @@ async def get_upcoming_episodes(days: int = 30, db: Session = Depends(get_db)):
     """Get upcoming episodes from Sonarr calendar that match user requests"""
     try:
         from app.services.sonarr_service import SonarrService
+        from app.database import EpisodeTracking
         from datetime import datetime, timedelta
         
         sonarr = SonarrService()
@@ -152,63 +153,113 @@ async def get_upcoming_episodes(days: int = 30, db: Session = Depends(get_db)):
         start_date = datetime.utcnow().strftime('%Y-%m-%d')
         end_date = (datetime.utcnow() + timedelta(days=days)).strftime('%Y-%m-%d')
         
+        logger.info(f"Fetching Sonarr calendar from {start_date} to {end_date}")
         calendar_episodes = await sonarr.get_calendar(start_date, end_date)
         
         if not calendar_episodes:
-            return {"upcoming": []}
+            logger.warning("No episodes returned from Sonarr calendar")
+            return {"upcoming": [], "count": 0}
+        
+        logger.info(f"Found {len(calendar_episodes)} episodes in Sonarr calendar")
         
         # Get all TV show requests with their users
         tv_requests = db.query(MediaRequest).filter(
             MediaRequest.media_type == "tv"
         ).all()
         
+        logger.info(f"Found {len(tv_requests)} TV show requests in database")
+        
         # Create a mapping of series TMDB IDs to users who requested them
         tmdb_to_requests = {}
+        title_to_requests = {}  # Fallback matching by title
         for request in tv_requests:
-            if request.tmdb_id not in tmdb_to_requests:
-                tmdb_to_requests[request.tmdb_id] = []
-            tmdb_to_requests[request.tmdb_id].append(request)
+            if request.tmdb_id:
+                if request.tmdb_id not in tmdb_to_requests:
+                    tmdb_to_requests[request.tmdb_id] = []
+                tmdb_to_requests[request.tmdb_id].append(request)
+            
+            # Also track by title (normalized)
+            normalized_title = request.title.lower().strip()
+            if normalized_title not in title_to_requests:
+                title_to_requests[normalized_title] = []
+            title_to_requests[normalized_title].append(request)
+        
+        logger.info(f"Tracking {len(tmdb_to_requests)} unique series by TMDB ID, {len(title_to_requests)} by title")
+        logger.info(f"Request titles: {list(title_to_requests.keys())[:5]}")  # Show first 5
+        logger.info(f"Request TMDB IDs: {list(tmdb_to_requests.keys())[:5]}")  # Show first 5
         
         upcoming = []
+        matched_count = 0
+        
+        # Log first few calendar entries for debugging
+        if calendar_episodes:
+            for ep in calendar_episodes[:3]:
+                series = ep.get("series", {})
+                logger.info(f"Calendar episode: {series.get('title')} (TMDB: {series.get('tmdbId')})")
+        
         for episode in calendar_episodes:
             series = episode.get("series", {})
             series_tmdb = series.get("tmdbId")
+            series_title = series.get("title", "").lower().strip()
+            
+            # Try to match by TMDB ID first, then by title
+            matching_requests = []
+            if series_tmdb and series_tmdb in tmdb_to_requests:
+                matching_requests = tmdb_to_requests[series_tmdb]
+                logger.debug(f"Matched '{series.get('title')}' by TMDB ID {series_tmdb}")
+            elif series_title in title_to_requests:
+                matching_requests = title_to_requests[series_title]
+                logger.debug(f"Matched '{series.get('title')}' by title '{series_title}'")
+            else:
+                # Log why it didn't match
+                if not series_tmdb:
+                    logger.debug(f"No match for '{series.get('title')}' - no TMDB ID in Sonarr")
+                else:
+                    logger.debug(f"No match for '{series.get('title')}' - TMDB {series_tmdb} not in requests, title '{series_title}' not in titles")
             
             # Check if any user has requested this series
-            if series_tmdb in tmdb_to_requests:
+            if matching_requests:
+                matched_count += 1
                 # Check if this episode has already been notified
-                for request in tmdb_to_requests[series_tmdb]:
+                for request in matching_requests:
                     existing_tracking = db.query(EpisodeTracking).filter(
                         EpisodeTracking.request_id == request.id,
                         EpisodeTracking.season_number == episode.get("seasonNumber"),
                         EpisodeTracking.episode_number == episode.get("episodeNumber")
                     ).first()
                     
-                    # Only include if not already notified
-                    if not existing_tracking or not existing_tracking.notified:
-                        upcoming.append({
-                            "series_title": series.get("title"),
-                            "season_number": episode.get("seasonNumber"),
-                            "episode_number": episode.get("episodeNumber"),
-                            "episode_title": episode.get("title"),
-                            "air_date": episode.get("airDateUtc"),
-                            "has_file": episode.get("hasFile", False),
-                            "monitored": episode.get("monitored", True),
-                            "user_email": request.user.email,
-                            "user_name": request.user.username,
-                            "already_notified": existing_tracking.notified if existing_tracking else False
-                        })
+                    # Include ALL upcoming episodes, mark their notification status
+                    upcoming.append({
+                        "series_title": series.get("title"),
+                        "season_number": episode.get("seasonNumber"),
+                        "episode_number": episode.get("episodeNumber"),
+                        "episode_title": episode.get("title"),
+                        "air_date": episode.get("airDateUtc"),
+                        "has_file": episode.get("hasFile", False),
+                        "monitored": episode.get("monitored", True),
+                        "user_email": request.user.email,
+                        "user_name": request.user.username,
+                        "already_notified": existing_tracking.notified if existing_tracking else False
+                    })
+        
+        logger.info(f"Matched {matched_count} episodes to user requests, {len(upcoming)} pending notification")
         
         # Sort by air date
-        upcoming.sort(key=lambda x: x["air_date"])
+        upcoming.sort(key=lambda x: x["air_date"] if x["air_date"] else "")
         
         return {
             "upcoming": upcoming,
-            "count": len(upcoming)
+            "count": len(upcoming),
+            "debug": {
+                "calendar_episodes": len(calendar_episodes),
+                "tv_requests": len(tv_requests),
+                "tracked_series": len(tmdb_to_requests),
+                "matched_episodes": matched_count
+            }
         }
         
     except Exception as e:
-        logger.error(f"Failed to get upcoming episodes: {e}")
+        logger.error(f"Failed to get upcoming episodes: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
