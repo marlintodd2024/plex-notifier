@@ -42,27 +42,30 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created/verified")
     
-    # Initial sync with Jellyseerr
-    try:
-        sync_service = JellyseerrSyncService()
-        await sync_service.sync_users()
-        await sync_service.sync_requests()
-        logger.info("Initial Jellyseerr sync completed")
-    except Exception as e:
-        logger.error(f"Failed to sync with Jellyseerr: {e}")
+    # Initial sync with Jellyseerr - DISABLED (using webhooks instead)
+    # Uncomment below if you want to sync existing requests on startup
+    # try:
+    #     sync_service = JellyseerrSyncService()
+    #     await sync_service.sync_users()
+    #     await sync_service.sync_requests()
+    #     logger.info("Initial Jellyseerr sync completed")
+    # except Exception as e:
+    #     logger.error(f"Failed to sync with Jellyseerr: {e}")
     
-    # Start background sync task (daily backup)
-    sync_task = asyncio.create_task(periodic_sync())
-    logger.info("Started daily backup sync task (runs every 24 hours)")
+    # Daily backup sync - DISABLED (webhooks handle everything)
+    # sync_task = asyncio.create_task(periodic_sync())
+    # logger.info("Started daily backup sync task (runs every 24 hours)")
+    
+    logger.info("Using Jellyseerr webhooks for real-time request tracking")
     
     yield
     
-    # Cancel background task on shutdown
-    sync_task.cancel()
-    try:
-        await sync_task
-    except asyncio.CancelledError:
-        logger.info("Periodic sync task cancelled")
+    # Cancel background task on shutdown (if enabled)
+    # sync_task.cancel()
+    # try:
+    #     await sync_task
+    # except asyncio.CancelledError:
+    #     logger.info("Periodic sync task cancelled")
     
     logger.info("Shutting down Plex Notification Portal...")
 
