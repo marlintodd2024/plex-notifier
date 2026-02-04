@@ -812,6 +812,10 @@
         }
 
         async function syncUsers() {
+            if (!confirm('Sync users from Jellyseerr?\n\nThis is safe and won\'t affect requests.')) {
+                return;
+            }
+            
             const btn = document.getElementById('syncUsersBtn');
             btn.disabled = true;
             btn.textContent = '⏳ Syncing...';
@@ -830,6 +834,10 @@
         }
 
         async function syncRequests() {
+            if (!confirm('⚠️ WARNING: This will pull ALL requests from Jellyseerr (including old/completed ones).\n\nSince you\'re using webhooks, you probably don\'t need this.\n\nContinue anyway?')) {
+                return;
+            }
+            
             const btn = document.getElementById('syncRequestsBtn');
             btn.disabled = true;
             btn.textContent = '⏳ Syncing...';
