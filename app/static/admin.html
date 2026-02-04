@@ -446,6 +446,7 @@
                             <th class="sortable" onclick="sortTable('notifications', 'sent')">Status</th>
                             <th class="sortable" onclick="sortTable('notifications', 'created_at')">Created At</th>
                             <th class="sortable" onclick="sortTable('notifications', 'sent_at')">Sent At</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="notificationsTableBody">
@@ -476,6 +477,7 @@
                             <th class="sortable" onclick="sortTable('upcoming', 'has_file')">Downloaded</th>
                             <th class="sortable" onclick="sortTable('upcoming', 'user_name')">User</th>
                             <th class="sortable" onclick="sortTable('upcoming', 'already_notified')">Status</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="upcomingTableBody">
@@ -636,7 +638,7 @@
         function renderNotifications(notifications) {
             const tbody = document.getElementById('notificationsTableBody');
             if (notifications.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><div>No notifications found</div></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><div>No notifications found</div></td></tr>';
                 return;
             }
             
@@ -649,6 +651,9 @@
                     <td><span class="badge ${notif.sent ? 'sent' : 'pending-email'}">${notif.sent ? 'Sent' : 'Pending'}</span></td>
                     <td>${new Date(notif.created_at).toLocaleString()}</td>
                     <td>${notif.sent_at ? new Date(notif.sent_at).toLocaleString() : '-'}</td>
+                    <td>
+                        <button class="action-btn" onclick="resendNotification(${notif.id})">🔁 ${notif.sent ? 'Resend' : 'Send Now'}</button>
+                    </td>
                 </tr>
             `).join('');
         }
@@ -656,7 +661,7 @@
         function renderUpcoming(upcoming) {
             const tbody = document.getElementById('upcomingTableBody');
             if (upcoming.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><div>No upcoming episodes found for requested shows</div></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><div>No upcoming episodes found for requested shows</div></td></tr>';
                 return;
             }
             
@@ -664,6 +669,9 @@
                 const airDate = new Date(ep.air_date);
                 const isToday = airDate.toDateString() === new Date().toDateString();
                 const isPast = airDate < new Date();
+                
+                // Show "Notify Now" button if downloaded and not already notified
+                const showNotifyButton = ep.has_file && !ep.already_notified;
                 
                 return `
                 <tr style="${isToday ? 'background: rgba(229, 160, 13, 0.1);' : ''}">
@@ -674,6 +682,9 @@
                     <td><span class="badge ${ep.has_file ? 'available' : 'pending'}">${ep.has_file ? '✓ Downloaded' : isPast ? 'Waiting' : 'Not Aired'}</span></td>
                     <td>${ep.user_name} (${ep.user_email})</td>
                     <td><span class="badge ${ep.already_notified ? 'sent' : 'pending-email'}">${ep.already_notified ? 'Notified' : 'Will Notify'}</span></td>
+                    <td>
+                        ${showNotifyButton ? `<button class="action-btn" onclick="notifyEpisodeNow(${ep.request_id}, ${ep.series_id}, ${ep.season_number}, ${ep.episode_number})">📧 Notify Now</button>` : '-'}
+                    </td>
                 </tr>
             `}).join('');
         }
@@ -950,6 +961,48 @@
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'Send Test Email';
+            }
+        }
+
+        async function notifyEpisodeNow(requestId, seriesId, seasonNumber, episodeNumber) {
+            if (!confirm(`Send notification now for this episode?`)) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/notify-episode?request_id=${requestId}&series_id=${seriesId}&season_number=${seasonNumber}&episode_number=${episodeNumber}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showSuccess(data.message || 'Notification sent successfully!');
+                    await loadUpcoming(); // Refresh the list
+                    await loadStats(); // Update stats
+                } else {
+                    showError(data.detail || 'Failed to send notification');
+                }
+            } catch (error) {
+                showError('Failed to send notification: ' + error.message);
+            }
+        }
+
+        async function resendNotification(notificationId) {
+            if (!confirm('Resend this notification?')) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/resend-notification/${notificationId}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showSuccess(data.message || 'Notification resent successfully!');
+                    await loadNotifications(); // Refresh the list
+                    await loadStats(); // Update stats
+                } else {
+                    showError(data.detail || 'Failed to resend notification');
+                }
+            } catch (error) {
+                showError('Failed to resend notification: ' + error.message);
             }
         }
 

@@ -89,6 +89,12 @@ async def sonarr_webhook(
                     ).first()
                     
                     if not existing_notification:
+                        # Get poster URL
+                        from app.services.tmdb_service import TMDBService
+                        from app.config import settings
+                        tmdb_service = TMDBService(settings.jellyseerr_url, settings.jellyseerr_api_key)
+                        poster_url = await tmdb_service.get_tv_poster(request.tmdb_id)
+                        
                         # Render email
                         html_body = email_service.render_episode_notification(
                             series_title=webhook.series.title,
@@ -97,7 +103,8 @@ async def sonarr_webhook(
                                 'episode': episode.episodeNumber,
                                 'title': episode.title,
                                 'air_date': episode.airDate
-                            }]
+                            }],
+                            poster_url=poster_url
                         )
                         
                         notification = Notification(
@@ -169,9 +176,16 @@ async def radarr_webhook(
             ).first()
             
             if not existing_notification:
+                # Get poster URL
+                from app.services.tmdb_service import TMDBService
+                from app.config import settings
+                tmdb_service = TMDBService(settings.jellyseerr_url, settings.jellyseerr_api_key)
+                poster_url = await tmdb_service.get_movie_poster(tmdb_id)
+                
                 # Render email
                 html_body = email_service.render_movie_notification(
-                    movie_title=webhook.movie.title
+                    movie_title=webhook.movie.title,
+                    poster_url=poster_url
                 )
                 
                 notification = Notification(

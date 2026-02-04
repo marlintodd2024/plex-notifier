@@ -60,7 +60,7 @@ class EmailService:
             logger.error(f"Failed to send email to {to_email}: {e}")
             return False
     
-    def render_episode_notification(self, series_title: str, episodes: List[dict]) -> str:
+    def render_episode_notification(self, series_title: str, episodes: List[dict], poster_url: str = None) -> str:
         """Render HTML email for new episode(s) notification"""
         template = Template("""
         <!DOCTYPE html>
@@ -71,6 +71,8 @@ class EmailService:
                 .container { max-width: 600px; margin: 0 auto; padding: 20px; }
                 .header { background-color: #e5a00d; color: white; padding: 20px; text-align: center; }
                 .content { background-color: #f9f9f9; padding: 20px; }
+                .poster-section { text-align: center; margin-bottom: 20px; }
+                .poster { max-width: 300px; width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
                 .episode { background-color: white; margin: 10px 0; padding: 15px; border-left: 4px solid #e5a00d; }
                 .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
                 .button { background-color: #e5a00d; color: white; padding: 10px 20px; text-decoration: none; display: inline-block; margin-top: 10px; }
@@ -82,6 +84,11 @@ class EmailService:
                     <h1>New Episode{% if episodes|length > 1 %}s{% endif %} Available!</h1>
                 </div>
                 <div class="content">
+                    {% if poster_url %}
+                    <div class="poster-section">
+                        <img src="{{ poster_url }}" alt="{{ series_title }}" class="poster">
+                    </div>
+                    {% endif %}
                     <h2>{{ series_title }}</h2>
                     <p>The following episode{% if episodes|length > 1 %}s are{% else %} is{% endif %} now available to watch on Plex:</p>
                     
@@ -103,9 +110,9 @@ class EmailService:
         </html>
         """)
         
-        return template.render(series_title=series_title, episodes=episodes)
+        return template.render(series_title=series_title, episodes=episodes, poster_url=poster_url)
     
-    def render_movie_notification(self, movie_title: str, year: int = None) -> str:
+    def render_movie_notification(self, movie_title: str, year: int = None, poster_url: str = None) -> str:
         """Render HTML email for new movie notification"""
         template = Template("""
         <!DOCTYPE html>
@@ -116,6 +123,8 @@ class EmailService:
                 .container { max-width: 600px; margin: 0 auto; padding: 20px; }
                 .header { background-color: #e5a00d; color: white; padding: 20px; text-align: center; }
                 .content { background-color: #f9f9f9; padding: 20px; text-align: center; }
+                .poster-section { margin: 20px 0; }
+                .poster { max-width: 300px; width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
                 .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
                 .movie-title { font-size: 24px; font-weight: bold; margin: 20px 0; }
             </style>
@@ -126,6 +135,11 @@ class EmailService:
                     <h1>🎬 Movie Now Available!</h1>
                 </div>
                 <div class="content">
+                    {% if poster_url %}
+                    <div class="poster-section">
+                        <img src="{{ poster_url }}" alt="{{ movie_title }}" class="poster">
+                    </div>
+                    {% endif %}
                     <div class="movie-title">{{ movie_title }}{% if year %} ({{ year }}){% endif %}</div>
                     <p>Your requested movie is now available to watch on Plex!</p>
                     <p style="margin-top: 30px;">Grab some popcorn and enjoy! 🍿</p>
@@ -138,7 +152,7 @@ class EmailService:
         </html>
         """)
         
-        return template.render(movie_title=movie_title, year=year)
+        return template.render(movie_title=movie_title, year=year, poster_url=poster_url)
     
     async def process_pending_notifications(self, db):
         """Process all pending notifications in the queue"""

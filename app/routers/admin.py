@@ -234,6 +234,8 @@ async def get_upcoming_episodes(days: int = 30, db: Session = Depends(get_db)):
                     
                     # Include ALL upcoming episodes, mark their notification status
                     upcoming.append({
+                        "request_id": request.id,
+                        "series_id": series_id,
                         "series_title": series.get("title"),
                         "season_number": episode.get("seasonNumber"),
                         "episode_number": episode.get("episodeNumber"),
@@ -416,4 +418,153 @@ async def send_test_email(
         raise
     except Exception as e:
         logger.error(f"Failed to send test email: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/notify-episode")
+async def notify_episode_now(
+    request_id: int,
+    series_id: int,
+    season_number: int,
+    episode_number: int,
+    db: Session = Depends(get_db)
+):
+    """Manually trigger notification for a specific episode"""
+    try:
+        from app.services.email_service import EmailService
+        from app.services.sonarr_service import SonarrService
+        from app.database import EpisodeTracking
+        
+        # Get the request
+        request = db.query(MediaRequest).filter(MediaRequest.id == request_id).first()
+        if not request:
+            raise HTTPException(status_code=404, detail="Request not found")
+        
+        # Get series details from Sonarr
+        sonarr = SonarrService()
+        series = await sonarr.get_series(series_id)
+        if not series:
+            raise HTTPException(status_code=404, detail="Series not found in Sonarr")
+        
+        # Get episode details
+        all_episodes = await sonarr.get_episodes_by_series(series_id)
+        episode = None
+        for ep in all_episodes or []:
+            if ep.get("seasonNumber") == season_number and ep.get("episodeNumber") == episode_number:
+                episode = ep
+                break
+        
+        if not episode:
+            raise HTTPException(status_code=404, detail="Episode not found")
+        
+        # Create or update episode tracking
+        tracking = db.query(EpisodeTracking).filter(
+            EpisodeTracking.request_id == request_id,
+            EpisodeTracking.series_id == series_id,
+            EpisodeTracking.season_number == season_number,
+            EpisodeTracking.episode_number == episode_number
+        ).first()
+        
+        if not tracking:
+            from datetime import datetime
+            tracking = EpisodeTracking(
+                request_id=request_id,
+                series_id=series_id,
+                season_number=season_number,
+                episode_number=episode_number,
+                episode_title=episode.get("title"),
+                air_date=datetime.fromisoformat(episode.get("airDateUtc").replace('Z', '+00:00')) if episode.get("airDateUtc") else None,
+                notified=True,
+                available_in_plex=True
+            )
+            db.add(tracking)
+        else:
+            # Mark as notified
+            tracking.notified = True
+        email_service = EmailService()
+        html_body = email_service.render_episode_notification(
+            series_title=series.get("title"),
+            episodes=[{
+                'season': season_number,
+                'episode': episode_number,
+                'title': episode.get("title"),
+                'air_date': episode.get("airDate")
+            }]
+        )
+        
+        notification = Notification(
+            user_id=request.user_id,
+            request_id=request_id,
+            notification_type="episode",
+            subject=f"New Episode: {series.get('title')} S{season_number:02d}E{episode_number:02d}",
+            body=html_body
+        )
+        db.add(notification)
+        
+        # Mark as notified
+        tracking.notified = True
+        
+        db.commit()
+        
+        # Send immediately
+        success = await email_service.send_email(
+            to_email=request.user.email,
+            subject=notification.subject,
+            html_body=notification.body
+        )
+        
+        if success:
+            notification.sent = True
+            from datetime import datetime
+            notification.sent_at = datetime.utcnow()
+            db.commit()
+        
+        return {
+            "success": True,
+            "message": f"Notification sent to {request.user.email}"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to send episode notification: {e}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/resend-notification/{notification_id}")
+async def resend_notification(notification_id: int, db: Session = Depends(get_db)):
+    """Resend an existing notification"""
+    try:
+        from app.services.email_service import EmailService
+        
+        notification = db.query(Notification).filter(Notification.id == notification_id).first()
+        if not notification:
+            raise HTTPException(status_code=404, detail="Notification not found")
+        
+        email_service = EmailService()
+        success = await email_service.send_email(
+            to_email=notification.user.email,
+            subject=notification.subject,
+            html_body=notification.body
+        )
+        
+        if success:
+            from datetime import datetime
+            notification.sent = True
+            notification.sent_at = datetime.utcnow()
+            notification.error_message = None
+            db.commit()
+            
+            return {
+                "success": True,
+                "message": f"Notification resent to {notification.user.email}"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to resend notification")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to resend notification: {e}")
         raise HTTPException(status_code=500, detail=str(e))

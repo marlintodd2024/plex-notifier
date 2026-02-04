@@ -76,7 +76,7 @@ class EpisodeTracking(Base):
     request = relationship("MediaRequest", back_populates="episodes")
     
     __table_args__ = (
-        UniqueConstraint('series_id', 'season_number', 'episode_number', name='_series_season_episode_uc'),
+        UniqueConstraint('request_id', 'series_id', 'season_number', 'episode_number', name='_request_series_season_episode_uc'),
     )
 
 
