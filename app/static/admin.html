@@ -389,6 +389,7 @@
             <div class="tab" onclick="switchTab('requests')">Requests</div>
             <div class="tab" onclick="switchTab('notifications')">Notifications</div>
             <div class="tab" onclick="switchTab('upcoming')">📅 Upcoming Episodes</div>
+            <div class="tab" onclick="switchTab('backup')">💾 Backup</div>
         </div>
 
         <div id="usersTab" class="tab-content active">
@@ -482,6 +483,38 @@
                     </thead>
                     <tbody id="upcomingTableBody">
                         <tr><td colspan="7" class="loading"><div class="spinner"></div>Loading upcoming episodes...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="backupTab" class="tab-content">
+            <div style="background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+                <h3 style="margin-bottom: 15px; color: #e5a00d;">💾 Create Backup</h3>
+                <p style="color: #999; margin-bottom: 15px;">Create a backup of your database and configuration. Backups include all users, requests, notifications, and episode tracking. API keys and passwords are NOT included for security.</p>
+                <button onclick="createBackup()" id="createBackupBtn">💾 Create Backup</button>
+            </div>
+
+            <div style="background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+                <h3 style="margin-bottom: 15px; color: #e5a00d;">📤 Restore Backup</h3>
+                <p style="color: #999; margin-bottom: 15px;">Upload a backup file to restore your data. <strong style="color: #f44336;">Warning:</strong> This will replace all current data!</p>
+                <input type="file" id="restoreFileInput" accept=".zip" style="margin-bottom: 10px; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #e4e4e4; width: 100%;">
+                <button onclick="restoreBackup()" id="restoreBackupBtn">📤 Restore Backup</button>
+            </div>
+
+            <h3 style="margin-bottom: 15px; color: #e5a00d;">Available Backups</h3>
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Filename</th>
+                            <th>Created</th>
+                            <th>Size</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="backupsTableBody">
+                        <tr><td colspan="4" class="loading"><div class="spinner"></div>Loading backups...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -740,6 +773,7 @@
             if (tabName === 'requests' && allRequests.length === 0) loadRequests();
             if (tabName === 'notifications' && allNotifications.length === 0) loadNotifications();
             if (tabName === 'upcoming' && allUpcoming.length === 0) loadUpcoming();
+            if (tabName === 'backup') loadBackups();
         }
 
         async function syncUsers() {

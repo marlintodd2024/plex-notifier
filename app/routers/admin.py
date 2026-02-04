@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 import logging
+import os
 
 from app.database import get_db, User, MediaRequest, EpisodeTracking, Notification
 from app.services.jellyseerr_sync import JellyseerrSyncService
@@ -634,4 +635,126 @@ async def resend_notification(notification_id: int, regenerate: bool = True, db:
         raise
     except Exception as e:
         logger.error(f"Failed to resend notification: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/backup/create")
+async def create_backup(include_config: bool = True):
+    """Create a backup of database and configuration"""
+    try:
+        from app.services.backup_service import BackupService
+        
+        backup_service = BackupService()
+        backup_file = backup_service.create_backup(include_config=include_config)
+        
+        if backup_file:
+            return {
+                "success": True,
+                "message": "Backup created successfully",
+                "filename": os.path.basename(backup_file),
+                "filepath": backup_file
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create backup")
+    except Exception as e:
+        logger.error(f"Backup creation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/backup/list")
+async def list_backups():
+    """List all available backups"""
+    try:
+        from app.services.backup_service import BackupService
+        
+        backup_service = BackupService()
+        backups = backup_service.list_backups()
+        
+        return {
+            "backups": backups,
+            "count": len(backups)
+        }
+    except Exception as e:
+        logger.error(f"Failed to list backups: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/backup/download/{filename}")
+async def download_backup(filename: str):
+    """Download a backup file"""
+    try:
+        from app.services.backup_service import BackupService
+        from fastapi.responses import FileResponse
+        
+        backup_service = BackupService()
+        filepath = os.path.join(backup_service.backup_dir, filename)
+        
+        if not os.path.exists(filepath):
+            raise HTTPException(status_code=404, detail="Backup file not found")
+        
+        return FileResponse(
+            path=filepath,
+            filename=filename,
+            media_type="application/zip"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to download backup: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/backup/restore")
+async def restore_backup(file: UploadFile):
+    """Restore from an uploaded backup file"""
+    try:
+        from app.services.backup_service import BackupService
+        import tempfile
+        
+        # Save uploaded file temporarily
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as temp_file:
+            content = await file.read()
+            temp_file.write(content)
+            temp_path = temp_file.name
+        
+        backup_service = BackupService()
+        success = backup_service.restore_backup(temp_path)
+        
+        # Cleanup temp file
+        os.remove(temp_path)
+        
+        if success:
+            return {
+                "success": True,
+                "message": "Backup restored successfully. Please restart the application."
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to restore backup")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Restore failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/backup/delete/{filename}")
+async def delete_backup(filename: str):
+    """Delete a backup file"""
+    try:
+        from app.services.backup_service import BackupService
+        
+        backup_service = BackupService()
+        success = backup_service.delete_backup(filename)
+        
+        if success:
+            return {
+                "success": True,
+                "message": f"Backup {filename} deleted successfully"
+            }
+        else:
+            raise HTTPException(status_code=404, detail="Backup file not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete backup: {e}")
         raise HTTPException(status_code=500, detail=str(e))
