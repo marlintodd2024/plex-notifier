@@ -49,40 +49,56 @@ async def sonarr_webhook(
             logger.info(f"No requests found for series TMDB ID {tmdb_id}")
             return WebhookResponse(success=True, message="No matching requests found")
         
+        logger.info(f"Found {len(requests)} request(s) for series: {webhook.series.title}")
+        
         # Process each episode
         notifications_created = 0
         for episode in webhook.episodes or []:
             for request in requests:
-                # Track this episode
-                episode_tracking = db.query(EpisodeTracking).filter(
-                    EpisodeTracking.series_id == webhook.series.id,
-                    EpisodeTracking.season_number == episode.seasonNumber,
-                    EpisodeTracking.episode_number == episode.episodeNumber
-                ).first()
+                # Get all users for this request (original + shared)
+                users_to_notify = [request.user]
                 
-                if not episode_tracking:
-                    # Create new episode tracking
-                    episode_tracking = EpisodeTracking(
-                        request_id=request.id,
-                        series_id=webhook.series.id,
-                        season_number=episode.seasonNumber,
-                        episode_number=episode.episodeNumber,
-                        episode_title=episode.title,
-                        air_date=datetime.fromisoformat(episode.airDateUtc.replace('Z', '+00:00')) if episode.airDateUtc else None,
-                        notified=False,
-                        available_in_plex=True
-                    )
-                    db.add(episode_tracking)
-                else:
-                    # Update existing tracking
-                    episode_tracking.available_in_plex = True
-                    episode_tracking.episode_title = episode.title
+                # Add shared users
+                from app.database import SharedRequest
+                shared_requests = db.query(SharedRequest).filter(
+                    SharedRequest.request_id == request.id
+                ).all()
+                for shared in shared_requests:
+                    users_to_notify.append(shared.user)
                 
-                # Create notification if not already notified
-                if not episode_tracking.notified:
-                    # Check if notification already exists
+                logger.info(f"Notifying {len(users_to_notify)} user(s) for {webhook.series.title} S{episode.seasonNumber:02d}E{episode.episodeNumber:02d}")
+                
+                for user in users_to_notify:
+                for user in users_to_notify:
+                    # Track this episode
+                    episode_tracking = db.query(EpisodeTracking).filter(
+                        EpisodeTracking.request_id == request.id,
+                        EpisodeTracking.series_id == webhook.series.id,
+                        EpisodeTracking.season_number == episode.seasonNumber,
+                        EpisodeTracking.episode_number == episode.episodeNumber
+                    ).first()
+                    
+                    if not episode_tracking:
+                        # Create new episode tracking (only once per request, not per user)
+                        episode_tracking = EpisodeTracking(
+                            request_id=request.id,
+                            series_id=webhook.series.id,
+                            season_number=episode.seasonNumber,
+                            episode_number=episode.episodeNumber,
+                            episode_title=episode.title,
+                            air_date=datetime.fromisoformat(episode.airDateUtc.replace('Z', '+00:00')) if episode.airDateUtc else None,
+                            notified=False,
+                            available_in_plex=True
+                        )
+                        db.add(episode_tracking)
+                    else:
+                        # Update existing tracking
+                        episode_tracking.available_in_plex = True
+                        episode_tracking.episode_title = episode.title
+                    
+                    # Create notification for this user if not already notified
                     existing_notification = db.query(Notification).filter(
-                        Notification.user_id == request.user_id,
+                        Notification.user_id == user.id,
                         Notification.request_id == request.id,
                         Notification.notification_type == "episode",
                         Notification.subject.contains(f"S{episode.seasonNumber:02d}E{episode.episodeNumber:02d}")
@@ -108,7 +124,7 @@ async def sonarr_webhook(
                         )
                         
                         notification = Notification(
-                            user_id=request.user_id,
+                            user_id=user.id,
                             request_id=request.id,
                             notification_type="episode",
                             subject=f"New Episode: {webhook.series.title} S{episode.seasonNumber:02d}E{episode.episodeNumber:02d}",
@@ -168,38 +184,52 @@ async def radarr_webhook(
         
         notifications_created = 0
         for request in requests:
-            # Check if already notified
-            existing_notification = db.query(Notification).filter(
-                Notification.user_id == request.user_id,
-                Notification.request_id == request.id,
-                Notification.notification_type == "movie"
-            ).first()
+            # Get all users for this request (original + shared)
+            users_to_notify = [request.user]
             
-            if not existing_notification:
-                # Get poster URL
-                from app.services.tmdb_service import TMDBService
-                from app.config import settings
-                tmdb_service = TMDBService(settings.jellyseerr_url, settings.jellyseerr_api_key)
-                poster_url = await tmdb_service.get_movie_poster(tmdb_id)
+            # Add shared users
+            from app.database import SharedRequest
+            shared_requests = db.query(SharedRequest).filter(
+                SharedRequest.request_id == request.id
+            ).all()
+            for shared in shared_requests:
+                users_to_notify.append(shared.user)
+            
+            logger.info(f"Notifying {len(users_to_notify)} user(s) for movie: {webhook.movie.title}")
+            
+            for user in users_to_notify:
+                # Check if already notified
+                existing_notification = db.query(Notification).filter(
+                    Notification.user_id == user.id,
+                    Notification.request_id == request.id,
+                    Notification.notification_type == "movie"
+                ).first()
                 
-                # Render email
-                html_body = email_service.render_movie_notification(
-                    movie_title=webhook.movie.title,
-                    poster_url=poster_url
-                )
-                
-                notification = Notification(
-                    user_id=request.user_id,
-                    request_id=request.id,
-                    notification_type="movie",
-                    subject=f"Movie Available: {webhook.movie.title}",
-                    body=html_body
-                )
-                db.add(notification)
-                notifications_created += 1
-                
-                # Update request status
-                request.status = "available"
+                if not existing_notification:
+                    # Get poster URL
+                    from app.services.tmdb_service import TMDBService
+                    from app.config import settings
+                    tmdb_service = TMDBService(settings.jellyseerr_url, settings.jellyseerr_api_key)
+                    poster_url = await tmdb_service.get_movie_poster(tmdb_id)
+                    
+                    # Render email
+                    html_body = email_service.render_movie_notification(
+                        movie_title=webhook.movie.title,
+                        poster_url=poster_url
+                    )
+                    
+                    notification = Notification(
+                        user_id=user.id,
+                        request_id=request.id,
+                        notification_type="movie",
+                        subject=f"Movie Available: {webhook.movie.title}",
+                        body=html_body
+                    )
+                    db.add(notification)
+                    notifications_created += 1
+            
+            # Update request status (once per request, not per user)
+            request.status = "available"
         
         db.commit()
         

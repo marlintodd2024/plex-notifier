@@ -4,7 +4,7 @@ from sqlalchemy import func
 import logging
 import os
 
-from app.database import get_db, User, MediaRequest, EpisodeTracking, Notification
+from app.database import get_db, User, MediaRequest, EpisodeTracking, Notification, SharedRequest
 from app.services.jellyseerr_sync import JellyseerrSyncService
 from app.services.email_service import EmailService
 
@@ -757,4 +757,136 @@ async def delete_backup(filename: str):
         raise
     except Exception as e:
         logger.error(f"Failed to delete backup: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/requests/{request_id}/shared-users")
+async def get_shared_users(request_id: int, db: Session = Depends(get_db)):
+    """Get all users sharing a request"""
+    try:
+        request = db.query(MediaRequest).filter(MediaRequest.id == request_id).first()
+        if not request:
+            raise HTTPException(status_code=404, detail="Request not found")
+        
+        # Get original requester
+        original_user = {
+            "user_id": request.user_id,
+            "username": request.user.username,
+            "email": request.user.email,
+            "is_original": True,
+            "added_at": request.created_at.isoformat()
+        }
+        
+        # Get shared users
+        shared_users = []
+        for shared in request.shared_with:
+            shared_users.append({
+                "user_id": shared.user_id,
+                "username": shared.user.username,
+                "email": shared.user.email,
+                "is_original": False,
+                "added_at": shared.added_at.isoformat(),
+                "added_by": shared.added_by_user.username if shared.added_by_user else None
+            })
+        
+        return {
+            "request_id": request_id,
+            "title": request.title,
+            "users": [original_user] + shared_users
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get shared users: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/requests/{request_id}/share")
+async def share_request_with_user(request_id: int, user_id: int, db: Session = Depends(get_db)):
+    """Add a user to a request (share it with them)"""
+    try:
+        # Check if request exists
+        request = db.query(MediaRequest).filter(MediaRequest.id == request_id).first()
+        if not request:
+            raise HTTPException(status_code=404, detail="Request not found")
+        
+        # Check if user exists
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Check if already the original requester
+        if request.user_id == user_id:
+            raise HTTPException(status_code=400, detail="User is already the original requester")
+        
+        # Check if already shared
+        existing = db.query(SharedRequest).filter(
+            SharedRequest.request_id == request_id,
+            SharedRequest.user_id == user_id
+        ).first()
+        
+        if existing:
+            raise HTTPException(status_code=400, detail="Request already shared with this user")
+        
+        # Create shared request
+        shared = SharedRequest(
+            request_id=request_id,
+            user_id=user_id,
+            added_by=None  # Could track admin user if you add auth
+        )
+        db.add(shared)
+        db.commit()
+        
+        logger.info(f"Shared request {request_id} ({request.title}) with user {user.username}")
+        
+        return {
+            "success": True,
+            "message": f"Request shared with {user.username}",
+            "request_id": request_id,
+            "user_id": user_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to share request: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/requests/{request_id}/share/{user_id}")
+async def unshare_request_with_user(request_id: int, user_id: int, db: Session = Depends(get_db)):
+    """Remove a user from a request"""
+    try:
+        # Check if request exists
+        request = db.query(MediaRequest).filter(MediaRequest.id == request_id).first()
+        if not request:
+            raise HTTPException(status_code=404, detail="Request not found")
+        
+        # Can't remove original requester
+        if request.user_id == user_id:
+            raise HTTPException(status_code=400, detail="Cannot remove the original requester")
+        
+        # Find shared request
+        shared = db.query(SharedRequest).filter(
+            SharedRequest.request_id == request_id,
+            SharedRequest.user_id == user_id
+        ).first()
+        
+        if not shared:
+            raise HTTPException(status_code=404, detail="User is not shared on this request")
+        
+        db.delete(shared)
+        db.commit()
+        
+        logger.info(f"Removed user {user_id} from request {request_id} ({request.title})")
+        
+        return {
+            "success": True,
+            "message": "User removed from request"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to unshare request: {e}")
+        db.rollback()
         raise HTTPException(status_code=500, detail=str(e))

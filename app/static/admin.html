@@ -1160,3 +1160,7 @@
     </script>
 </body>
 </html>
+
+        async function manageSharedUsers(requestId, title) {
+            alert(`Shared users management for "${title}" - Coming soon!\n\nUse API endpoints:\nGET /admin/requests/${requestId}/shared-users\nPOST /admin/requests/${requestId}/share?user_id=X\nDELETE /admin/requests/${requestId}/share/{user_id}`);
+        }

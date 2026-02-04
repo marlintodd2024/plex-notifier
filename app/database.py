@@ -56,6 +56,26 @@ class MediaRequest(Base):
     user = relationship("User", back_populates="requests")
     episodes = relationship("EpisodeTracking", back_populates="request")
     notifications = relationship("Notification", back_populates="request")
+    shared_with = relationship("SharedRequest", back_populates="request", cascade="all, delete-orphan")
+
+
+class SharedRequest(Base):
+    __tablename__ = "shared_requests"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    request_id = Column(Integer, ForeignKey("media_requests.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    added_at = Column(DateTime, default=datetime.utcnow)
+    added_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # Who added this user
+    
+    # Relationships
+    request = relationship("MediaRequest", back_populates="shared_with")
+    user = relationship("User", foreign_keys=[user_id])
+    added_by_user = relationship("User", foreign_keys=[added_by])
+    
+    __table_args__ = (
+        UniqueConstraint('request_id', 'user_id', name='_request_user_uc'),
+    )
 
 
 class EpisodeTracking(Base):
