@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from typing import List
 
-from app.database import get_db, MediaRequest, EpisodeTracking, Notification
+from app.database import get_db, MediaRequest, EpisodeTracking, Notification, User
 from app.schemas import SonarrWebhook, RadarrWebhook, WebhookResponse
 from app.services.email_service import EmailService
 from app.services.sonarr_service import SonarrService
