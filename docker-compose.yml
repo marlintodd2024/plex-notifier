@@ -22,7 +22,11 @@ services:
     build: .
     container_name: notification-portal-api
     environment:
-      DATABASE_URL: postgresql://notifyuser:${DB_PASSWORD:-changeme123}@postgres:5432/notifications
+      DB_PASSWORD: ${DB_PASSWORD:-changeme123}
+      DB_USER: ${DB_USER:-notifyuser}
+      DB_NAME: ${DB_NAME:-notifications}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
       JELLYSEERR_URL: ${JELLYSEERR_URL}
       JELLYSEERR_API_KEY: ${JELLYSEERR_API_KEY}
       SONARR_URL: ${SONARR_URL}

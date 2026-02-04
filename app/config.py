@@ -1,10 +1,15 @@
 from pydantic_settings import BaseSettings
+from pydantic import computed_field
 from typing import Optional
 
 
 class Settings(BaseSettings):
     # Database
-    database_url: str
+    db_password: str
+    db_user: str = "notifyuser"
+    db_name: str = "notifications"
+    db_host: str = "postgres"
+    db_port: int = 5432
     
     # Jellyseerr
     jellyseerr_url: str
@@ -31,6 +36,11 @@ class Settings(BaseSettings):
     
     # Application
     app_secret_key: str
+    
+    @computed_field
+    @property
+    def database_url(self) -> str:
+        return f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
     
     class Config:
         env_file = ".env"
