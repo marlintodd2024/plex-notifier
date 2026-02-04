@@ -233,21 +233,33 @@ async def get_upcoming_episodes(days: int = 30, db: Session = Depends(get_db)):
                         EpisodeTracking.episode_number == episode.get("episodeNumber")
                     ).first()
                     
-                    # Include ALL upcoming episodes, mark their notification status
-                    upcoming.append({
-                        "request_id": request.id,
-                        "series_id": series_id,
-                        "series_title": series.get("title"),
-                        "season_number": episode.get("seasonNumber"),
-                        "episode_number": episode.get("episodeNumber"),
-                        "episode_title": episode.get("title"),
-                        "air_date": episode.get("airDateUtc"),
-                        "has_file": episode.get("hasFile", False),
-                        "monitored": episode.get("monitored", True),
-                        "user_email": request.user.email,
-                        "user_name": request.user.username,
-                        "already_notified": existing_tracking.notified if existing_tracking else False
-                    })
+                    # Get all users for this request (original + shared)
+                    users_for_request = [request.user]
+                    
+                    # Add shared users
+                    from app.database import SharedRequest
+                    shared = db.query(SharedRequest).filter(
+                        SharedRequest.request_id == request.id
+                    ).all()
+                    for s in shared:
+                        users_for_request.append(s.user)
+                    
+                    # Create an entry for each user
+                    for user in users_for_request:
+                        upcoming.append({
+                            "request_id": request.id,
+                            "series_id": series_id,
+                            "series_title": series.get("title"),
+                            "season_number": episode.get("seasonNumber"),
+                            "episode_number": episode.get("episodeNumber"),
+                            "episode_title": episode.get("title"),
+                            "air_date": episode.get("airDateUtc"),
+                            "has_file": episode.get("hasFile", False),
+                            "monitored": episode.get("monitored", True),
+                            "user_email": user.email,
+                            "user_name": user.username,
+                            "already_notified": existing_tracking.notified if existing_tracking else False
+                        })
         
         logger.info(f"Matched {matched_count} episodes to user requests, {len(upcoming)} pending notification")
         
