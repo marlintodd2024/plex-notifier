@@ -546,6 +546,35 @@
         </div>
     </div>
 
+    <!-- Shared Users Modal -->
+    <div id="sharedUsersModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: #1a1a2e; border-radius: 12px; padding: 30px; max-width: 600px; width: 90%; border: 1px solid rgba(255,255,255,0.1); max-height: 80vh; overflow-y: auto;">
+            <h2 style="margin-bottom: 10px; color: #e5a00d;">👥 Manage Shared Users</h2>
+            <p style="color: #999; margin-bottom: 20px; font-size: 14px;" id="sharedUsersTitle"></p>
+            
+            <div style="margin-bottom: 20px;">
+                <h3 style="color: #e5a00d; font-size: 16px; margin-bottom: 10px;">Current Users</h3>
+                <div id="sharedUsersList" style="max-height: 200px; overflow-y: auto;">
+                    <div style="text-align: center; padding: 20px; color: #999;">Loading...</div>
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <h3 style="color: #e5a00d; font-size: 16px; margin-bottom: 10px;">Add User</h3>
+                <div style="display: flex; gap: 10px;">
+                    <select id="addUserSelect" style="flex: 1; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #e4e4e4;">
+                        <option value="">Select a user...</option>
+                    </select>
+                    <button onclick="addSharedUser()" id="addUserBtn">➕ Add</button>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button onclick="closeSharedUsersModal()" class="secondary">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let allUsers = [];
         let allRequests = [];
@@ -662,7 +691,8 @@
                     <td><span class="badge ${req.status}">${req.status}</span></td>
                     <td>${new Date(req.created_at).toLocaleString()}</td>
                     <td>
-                        ${req.media_type === 'tv' ? `<button class="action-btn" onclick="importEpisodes(${req.id})">Import Episodes</button>` : ''}
+                        <button class="action-btn" onclick="manageSharedUsers(${req.id}, '${req.title.replace(/'/g, "\\'")}')">👥 Users</button>
+                        ${req.media_type === 'tv' ? `<button class="action-btn" onclick="importEpisodes(${req.id})">📥 Import</button>` : ''}
                     </td>
                 </tr>
             `).join('');
@@ -1155,12 +1185,132 @@
             }
         }
 
+        async function manageSharedUsers(requestId, title) {
+            // Store current request
+            window.currentRequestId = requestId;
+            
+            // Set title
+            document.getElementById('sharedUsersTitle').textContent = `Request: ${title}`;
+            
+            // Show modal
+            const modal = document.getElementById('sharedUsersModal');
+            modal.style.display = 'flex';
+            
+            // Load shared users and all users
+            await Promise.all([
+                loadSharedUsersForRequest(requestId),
+                loadAllUsersForSelect()
+            ]);
+        }
+
+        function closeSharedUsersModal() {
+            document.getElementById('sharedUsersModal').style.display = 'none';
+            window.currentRequestId = null;
+        }
+
+        async function loadSharedUsersForRequest(requestId) {
+            try {
+                const response = await fetch(`${API_BASE}/admin/requests/${requestId}/shared-users`);
+                const data = await response.json();
+                
+                const container = document.getElementById('sharedUsersList');
+                
+                if (!data.users || data.users.length === 0) {
+                    container.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">No users found</div>';
+                    return;
+                }
+                
+                container.innerHTML = data.users.map(user => `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 8px;">
+                        <div>
+                            <div style="color: #e5a00d; font-weight: 600;">${user.username}</div>
+                            <div style="color: #999; font-size: 12px;">${user.email}</div>
+                            ${user.is_original ? '<span style="font-size: 11px; color: #4caf50;">Original Requester</span>' : ''}
+                        </div>
+                        ${!user.is_original ? `<button class="action-btn" onclick="removeSharedUser(${user.user_id})" style="background: rgba(244,67,54,0.2); color: #f44336; padding: 8px 12px;">Remove</button>` : ''}
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('Failed to load shared users:', error);
+                document.getElementById('sharedUsersList').innerHTML = '<div style="color: #f44336; padding: 20px;">Failed to load users</div>';
+            }
+        }
+
+        async function loadAllUsersForSelect() {
+            try {
+                // Use the already loaded allUsers
+                if (allUsers.length === 0) {
+                    await loadUsers();
+                }
+                
+                const select = document.getElementById('addUserSelect');
+                select.innerHTML = '<option value="">Select a user...</option>' + 
+                    allUsers.map(user => `<option value="${user.id}">${user.username} (${user.email})</option>`).join('');
+                
+            } catch (error) {
+                console.error('Failed to load users for select:', error);
+            }
+        }
+
+        async function addSharedUser() {
+            const userId = document.getElementById('addUserSelect').value;
+            
+            if (!userId) {
+                showError('Please select a user');
+                return;
+            }
+            
+            const btn = document.getElementById('addUserBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Adding...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/requests/${window.currentRequestId}/share?user_id=${userId}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showSuccess(data.message || 'User added successfully!');
+                    // Reload the shared users list
+                    await loadSharedUsersForRequest(window.currentRequestId);
+                    // Reset select
+                    document.getElementById('addUserSelect').value = '';
+                } else {
+                    showError(data.detail || 'Failed to add user');
+                }
+            } catch (error) {
+                showError('Failed to add user: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '➕ Add';
+            }
+        }
+
+        async function removeSharedUser(userId) {
+            if (!confirm('Remove this user from the request?')) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/requests/${window.currentRequestId}/share/${userId}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showSuccess(data.message || 'User removed successfully!');
+                    // Reload the shared users list
+                    await loadSharedUsersForRequest(window.currentRequestId);
+                } else {
+                    showError(data.detail || 'Failed to remove user');
+                }
+            } catch (error) {
+                showError('Failed to remove user: ' + error.message);
+            }
+        }
+
         // Initial load
         refreshData();
     </script>
 </body>
 </html>
-
-        async function manageSharedUsers(requestId, title) {
-            alert(`Shared users management for "${title}" - Coming soon!\n\nUse API endpoints:\nGET /admin/requests/${requestId}/shared-users\nPOST /admin/requests/${requestId}/share?user_id=X\nDELETE /admin/requests/${requestId}/share/{user_id}`);
-        }
