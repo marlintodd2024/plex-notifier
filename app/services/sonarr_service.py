@@ -42,6 +42,45 @@ class SonarrService:
             logger.error(f"Failed to fetch episode {episode_id} from Sonarr: {e}")
             return None
     
+    async def get_queue(self) -> list:
+        """Get current download/import queue from Sonarr"""
+        try:
+            queue_data = await self._get("/queue")
+            return queue_data.get("records", [])
+        except Exception as e:
+            logger.error(f"Failed to fetch Sonarr queue: {e}")
+            return []
+    
+    async def get_series_episodes_in_queue(self, series_id: int) -> list:
+        """Get episodes for a specific series that are currently in the queue (downloading or importing)"""
+        try:
+            queue = await self.get_queue()
+            series_queue = []
+            
+            for item in queue:
+                # Check if this queue item is for our series
+                if item.get("series", {}).get("id") == series_id:
+                    # Only include items that are downloading or importing
+                    status = item.get("status", "")
+                    if status.lower() in ["downloading", "queued", "importPending"]:
+                        episode = item.get("episode", {})
+                        series_queue.append({
+                            "season": episode.get("seasonNumber"),
+                            "episode": episode.get("episodeNumber"),
+                            "title": episode.get("title"),
+                            "status": status
+                        })
+            
+            logger.info(f"Found {len(series_queue)} episodes in queue for series {series_id}")
+            return series_queue
+            
+        except Exception as e:
+            logger.error(f"Failed to get queue for series {series_id}: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Failed to fetch episode {episode_id} from Sonarr: {e}")
+            return None
+    
     async def get_series_by_tmdb(self, tmdb_id: int) -> Optional[Dict]:
         """Get series by TMDB ID"""
         try:

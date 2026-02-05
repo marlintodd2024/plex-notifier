@@ -149,9 +149,10 @@ async def sonarr_webhook(
             else:
                 subject = f"New Episodes: {webhook.series.title} ({len(batch['episodes'])} episodes)"
             
-            # Set send_after to 5 minutes from now (300 seconds) to allow Plex to index
+            # Set send_after to 7 minutes from now (420 seconds)
+            # This gives time for: 2 min batch window + 5 min Plex indexing
             from datetime import timedelta
-            send_after = datetime.utcnow() + timedelta(seconds=300)
+            send_after = datetime.utcnow() + timedelta(seconds=420)
             
             notification = Notification(
                 user_id=batch['user'].id,
@@ -159,7 +160,8 @@ async def sonarr_webhook(
                 notification_type="episode",
                 subject=subject,
                 body=html_body,
-                send_after=send_after
+                send_after=send_after,
+                series_id=webhook.series.id  # Store series ID for smart batching
             )
             db.add(notification)
             notifications_created += 1
