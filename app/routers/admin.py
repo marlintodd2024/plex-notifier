@@ -1065,3 +1065,44 @@ async def update_config(config: dict):
     except Exception as e:
         logger.error(f"Failed to update config: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/restart")
+async def restart_container():
+    """Restart the Docker container (requires Docker socket access)"""
+    import os
+    import subprocess
+    
+    try:
+        # Get container ID from environment or hostname
+        container_id = os.getenv('HOSTNAME')
+        
+        if not container_id:
+            raise HTTPException(status_code=500, detail="Cannot determine container ID")
+        
+        # Restart the container using Docker API
+        # Note: This requires the Docker socket to be mounted
+        result = subprocess.run(
+            ['docker', 'restart', container_id],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        
+        if result.returncode == 0:
+            logger.info(f"Container {container_id} restart initiated")
+            return {"success": True, "message": "Container restart initiated"}
+        else:
+            raise HTTPException(status_code=500, detail=f"Restart failed: {result.stderr}")
+            
+    except subprocess.TimeoutExpired:
+        # Timeout is actually good - means restart started
+        logger.info("Container restart command sent (timeout expected)")
+        return {"success": True, "message": "Container restart initiated"}
+    except FileNotFoundError:
+        raise HTTPException(status_code=500, detail="Docker CLI not available in container")
+    except Exception as e:
+        logger.error(f"Failed to restart container: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Failed to update config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

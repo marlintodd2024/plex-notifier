@@ -50,6 +50,7 @@ services:
       - notification-network
     volumes:
       - ./app:/app/app:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # For container restart
     restart: unless-stopped
 
 volumes:
