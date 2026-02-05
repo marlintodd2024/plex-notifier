@@ -155,8 +155,15 @@ class EmailService:
         return template.render(movie_title=movie_title, year=year, poster_url=poster_url)
     
     async def process_pending_notifications(self, db):
-        """Process all pending notifications in the queue"""
-        pending = db.query(Notification).filter(Notification.sent == False).all()
+        """Process all pending notifications in the queue (respects send_after delay)"""
+        from datetime import datetime
+        
+        # Only get notifications that are ready to send (send_after is null or in the past)
+        now = datetime.utcnow()
+        pending = db.query(Notification).filter(
+            Notification.sent == False,
+            (Notification.send_after == None) | (Notification.send_after <= now)
+        ).all()
         
         logger.info(f"Processing {len(pending)} pending notifications")
         

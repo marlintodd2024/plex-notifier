@@ -33,6 +33,28 @@ async def periodic_sync():
             logger.error(f"Daily backup sync failed: {e}")
 
 
+async def process_notifications_periodically():
+    """Background task to process pending notifications every minute"""
+    from app.services.email_service import EmailService
+    from app.database import get_db
+    
+    email_service = EmailService()
+    
+    while True:
+        try:
+            await asyncio.sleep(60)  # Check every 60 seconds
+            logger.debug("Checking for pending notifications...")
+            
+            db = next(get_db())
+            try:
+                await email_service.process_pending_notifications(db)
+            finally:
+                db.close()
+                
+        except Exception as e:
+            logger.error(f"Notification processing failed: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
@@ -56,9 +78,20 @@ async def lifespan(app: FastAPI):
     # sync_task = asyncio.create_task(periodic_sync())
     # logger.info("Started daily backup sync task (runs every 24 hours)")
     
+    # Start notification processor (checks every minute for delayed notifications)
+    notification_task = asyncio.create_task(process_notifications_periodically())
+    logger.info("Started notification processor (checks every 60 seconds)")
+    
     logger.info("Using Jellyseerr webhooks for real-time request tracking")
     
     yield
+    
+    # Cancel background tasks on shutdown
+    notification_task.cancel()
+    try:
+        await notification_task
+    except asyncio.CancelledError:
+        logger.info("Notification processor cancelled")
     
     # Cancel background task on shutdown (if enabled)
     # sync_task.cancel()

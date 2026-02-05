@@ -149,12 +149,17 @@ async def sonarr_webhook(
             else:
                 subject = f"New Episodes: {webhook.series.title} ({len(batch['episodes'])} episodes)"
             
+            # Set send_after to 5 minutes from now (300 seconds) to allow Plex to index
+            from datetime import timedelta
+            send_after = datetime.utcnow() + timedelta(seconds=300)
+            
             notification = Notification(
                 user_id=batch['user'].id,
                 request_id=batch['request_id'],
                 notification_type="episode",
                 subject=subject,
-                body=html_body
+                body=html_body,
+                send_after=send_after
             )
             db.add(notification)
             notifications_created += 1
@@ -163,7 +168,7 @@ async def sonarr_webhook(
             for ep in batch['episodes']:
                 ep['tracking'].notified = True
             
-            logger.info(f"Created batched notification for {batch['user'].email}: {len(batch['episodes'])} episode(s)")
+            logger.info(f"Created batched notification for {batch['user'].email}: {len(batch['episodes'])} episode(s), will send after {send_after}")
         
         db.commit()
         
@@ -249,15 +254,21 @@ async def radarr_webhook(
                         poster_url=poster_url
                     )
                     
+                    # Set send_after to 5 minutes from now (300 seconds) to allow Plex to index
+                    from datetime import timedelta
+                    send_after = datetime.utcnow() + timedelta(seconds=300)
+                    
                     notification = Notification(
                         user_id=user.id,
                         request_id=request.id,
                         notification_type="movie",
                         subject=f"Movie Available: {webhook.movie.title}",
-                        body=html_body
+                        body=html_body,
+                        send_after=send_after
                     )
                     db.add(notification)
                     notifications_created += 1
+                    logger.info(f"Created movie notification for {user.email}, will send after {send_after}")
             
             # Update request status (once per request, not per user)
             request.status = "available"

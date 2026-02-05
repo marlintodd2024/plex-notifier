@@ -111,6 +111,7 @@ class Notification(Base):
     body = Column(Text, nullable=False)
     sent = Column(Boolean, default=False)
     sent_at = Column(DateTime, nullable=True)
+    send_after = Column(DateTime, nullable=True)  # Delay sending until this time (for Plex indexing)
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     

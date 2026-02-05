@@ -903,3 +903,144 @@ async def unshare_request_with_user(request_id: int, user_id: int, db: Session =
         logger.error(f"Failed to unshare request: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/config")
+async def get_config():
+    """Get current configuration (sanitized - no passwords/API keys shown in full)"""
+    import os
+    
+    def mask_secret(value: str) -> str:
+        """Mask sensitive values, showing only first/last 4 chars"""
+        if not value or len(value) < 8:
+            return "••••••••"
+        return f"{value[:4]}••••{value[-4:]}"
+    
+    try:
+        config = {
+            "smtp": {
+                "host": os.getenv("SMTP_HOST", ""),
+                "port": os.getenv("SMTP_PORT", "587"),
+                "from": os.getenv("SMTP_FROM", ""),
+                "user": os.getenv("SMTP_USER", ""),
+                "password": mask_secret(os.getenv("SMTP_PASSWORD", ""))
+            },
+            "jellyseerr": {
+                "url": os.getenv("JELLYSEERR_URL", ""),
+                "api_key": mask_secret(os.getenv("JELLYSEERR_API_KEY", ""))
+            },
+            "sonarr": {
+                "url": os.getenv("SONARR_URL", ""),
+                "api_key": mask_secret(os.getenv("SONARR_API_KEY", ""))
+            },
+            "radarr": {
+                "url": os.getenv("RADARR_URL", ""),
+                "api_key": mask_secret(os.getenv("RADARR_API_KEY", ""))
+            },
+            "plex": {
+                "url": os.getenv("PLEX_URL", ""),
+                "token": mask_secret(os.getenv("PLEX_TOKEN", ""))
+            }
+        }
+        return config
+    except Exception as e:
+        logger.error(f"Failed to get config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/config")
+async def update_config(config: dict):
+    """Update configuration in .env file"""
+    import os
+    from pathlib import Path
+    
+    try:
+        env_path = Path("/app/.env")
+        
+        # Read existing .env
+        env_lines = []
+        if env_path.exists():
+            with open(env_path, 'r') as f:
+                env_lines = f.readlines()
+        
+        # Build new env dict
+        env_dict = {}
+        for line in env_lines:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, value = line.split('=', 1)
+                env_dict[key] = value
+        
+        # Update with new values (only if not masked)
+        updates = []
+        
+        # SMTP
+        if 'smtp' in config:
+            if config['smtp'].get('host'):
+                env_dict['SMTP_HOST'] = config['smtp']['host']
+                updates.append('SMTP_HOST')
+            if config['smtp'].get('port'):
+                env_dict['SMTP_PORT'] = str(config['smtp']['port'])
+                updates.append('SMTP_PORT')
+            if config['smtp'].get('from'):
+                env_dict['SMTP_FROM'] = config['smtp']['from']
+                updates.append('SMTP_FROM')
+            if config['smtp'].get('user'):
+                env_dict['SMTP_USER'] = config['smtp']['user']
+                updates.append('SMTP_USER')
+            if config['smtp'].get('password') and not config['smtp']['password'].startswith('••'):
+                env_dict['SMTP_PASSWORD'] = config['smtp']['password']
+                updates.append('SMTP_PASSWORD')
+        
+        # Jellyseerr
+        if 'jellyseerr' in config:
+            if config['jellyseerr'].get('url'):
+                env_dict['JELLYSEERR_URL'] = config['jellyseerr']['url']
+                updates.append('JELLYSEERR_URL')
+            if config['jellyseerr'].get('api_key') and not config['jellyseerr']['api_key'].startswith('••'):
+                env_dict['JELLYSEERR_API_KEY'] = config['jellyseerr']['api_key']
+                updates.append('JELLYSEERR_API_KEY')
+        
+        # Sonarr
+        if 'sonarr' in config:
+            if config['sonarr'].get('url'):
+                env_dict['SONARR_URL'] = config['sonarr']['url']
+                updates.append('SONARR_URL')
+            if config['sonarr'].get('api_key') and not config['sonarr']['api_key'].startswith('••'):
+                env_dict['SONARR_API_KEY'] = config['sonarr']['api_key']
+                updates.append('SONARR_API_KEY')
+        
+        # Radarr
+        if 'radarr' in config:
+            if config['radarr'].get('url'):
+                env_dict['RADARR_URL'] = config['radarr']['url']
+                updates.append('RADARR_URL')
+            if config['radarr'].get('api_key') and not config['radarr']['api_key'].startswith('••'):
+                env_dict['RADARR_API_KEY'] = config['radarr']['api_key']
+                updates.append('RADARR_API_KEY')
+        
+        # Plex
+        if 'plex' in config:
+            if config['plex'].get('url'):
+                env_dict['PLEX_URL'] = config['plex']['url']
+                updates.append('PLEX_URL')
+            if config['plex'].get('token') and not config['plex']['token'].startswith('••'):
+                env_dict['PLEX_TOKEN'] = config['plex']['token']
+                updates.append('PLEX_TOKEN')
+        
+        # Write back to .env
+        with open(env_path, 'w') as f:
+            for key, value in env_dict.items():
+                f.write(f"{key}={value}\n")
+        
+        logger.info(f"Configuration updated: {', '.join(updates)}")
+        
+        return {
+            "success": True,
+            "message": f"Updated {len(updates)} settings. Restart required for changes to take effect.",
+            "updated_fields": updates
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to update config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
