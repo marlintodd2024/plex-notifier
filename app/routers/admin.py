@@ -84,7 +84,7 @@ async def list_users(skip: int = 0, limit: int = 50, db: Session = Depends(get_d
                 "jellyseerr_id": u.jellyseerr_id,
                 "email": u.email,
                 "username": u.username,
-                "created_at": u.created_at
+                "created_at": u.created_at.isoformat() + 'Z' if u.created_at else None
             }
             for u in users
         ]
@@ -103,7 +103,7 @@ async def list_requests(skip: int = 0, limit: int = 50, db: Session = Depends(ge
                 "media_type": r.media_type,
                 "title": r.title,
                 "status": r.status,
-                "created_at": r.created_at
+                "created_at": r.created_at.isoformat() + 'Z' if r.created_at else None
             }
             for r in requests
         ]
@@ -133,8 +133,8 @@ async def list_notifications(
                 "type": n.notification_type,
                 "subject": n.subject,
                 "sent": n.sent,
-                "sent_at": n.sent_at,
-                "created_at": n.created_at
+                "sent_at": n.sent_at.isoformat() + 'Z' if n.sent_at else None,
+                "created_at": n.created_at.isoformat() + 'Z' if n.created_at else None
             }
             for n in notifications
         ]

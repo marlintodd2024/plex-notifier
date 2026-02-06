@@ -204,20 +204,23 @@ class EmailService:
                 continue
             
             # No more episodes coming OR hit max wait time - batch and send!
-            # Find all notifications for same user + series that are ready
+            # Find all notifications for same user + series that are ready OR will be ready soon
+            # This ensures we don't split episodes that are just a minute apart
+            soon = now + timedelta(minutes=2)  # Include notifications ready within 2 minutes
             batch = db.query(Notification).filter(
                 Notification.sent == False,
                 Notification.user_id == notif.user_id,
                 Notification.series_id == notif.series_id,
                 Notification.notification_type == "episode",
-                (Notification.send_after == None) | (Notification.send_after <= now)
+                (Notification.send_after == None) | (Notification.send_after <= soon)
             ).all()
             
             if len(batch) > 1:
                 # Multiple episodes - send combined email
                 logger.info(f"Batching {len(batch)} episode notifications for user {notif.user.email}")
                 
-                # Parse episodes from existing notifications
+                # Get episode details from tracking table
+                from app.database import EpisodeTracking
                 episodes = []
                 series_title = None
                 for b in batch:
@@ -225,10 +228,20 @@ class EmailService:
                     import re
                     match = re.search(r'S(\d+)E(\d+)', b.subject)
                     if match:
+                        season_num = int(match.group(1))
+                        episode_num = int(match.group(2))
+                        
+                        # Try to get episode title from tracking table
+                        tracking = db.query(EpisodeTracking).filter(
+                            EpisodeTracking.series_id == b.series_id,
+                            EpisodeTracking.season_number == season_num,
+                            EpisodeTracking.episode_number == episode_num
+                        ).first()
+                        
                         episodes.append({
-                            'season': int(match.group(1)),
-                            'episode': int(match.group(2)),
-                            'title': ''  # We don't have title in subject, that's ok
+                            'season': season_num,
+                            'episode': episode_num,
+                            'title': tracking.episode_title if tracking and tracking.episode_title else ''
                         })
                     # Extract series title from first notification
                     if not series_title:

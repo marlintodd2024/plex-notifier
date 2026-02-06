@@ -499,7 +499,12 @@
         </div>
 
         <div id="requestsTab" class="tab-content">
-            <input type="text" class="search-box" placeholder="Search requests..." id="requestSearch" oninput="filterRequests()">
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <input type="text" class="search-box" placeholder="Search requests..." id="requestSearch" oninput="filterRequests()" style="flex: 1;">
+                <button onclick="filterRequestsByType('all')" id="requestFilterAll" class="secondary" style="background: #e5a00d;">All</button>
+                <button onclick="filterRequestsByType('tv')" id="requestFilterTV" class="secondary">📺 TV Shows</button>
+                <button onclick="filterRequestsByType('movie')" id="requestFilterMovie" class="secondary">🎬 Movies</button>
+            </div>
             <div class="data-table">
                 <table>
                     <thead>
@@ -521,7 +526,12 @@
         </div>
 
         <div id="notificationsTab" class="tab-content">
-            <input type="text" class="search-box" placeholder="Search notifications..." id="notificationSearch" oninput="filterNotifications()">
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <input type="text" class="search-box" placeholder="Search notifications..." id="notificationSearch" oninput="filterNotifications()" style="flex: 1;">
+                <button onclick="filterNotificationsByType('all')" id="notificationFilterAll" class="secondary" style="background: #e5a00d;">All</button>
+                <button onclick="filterNotificationsByType('episode')" id="notificationFilterTV" class="secondary">📺 TV Shows</button>
+                <button onclick="filterNotificationsByType('movie')" id="notificationFilterMovie" class="secondary">🎬 Movies</button>
+            </div>
             <div class="data-table">
                 <table>
                     <thead>
@@ -758,7 +768,7 @@
                     <select id="addUserSelect" style="flex: 1; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #e4e4e4;">
                         <option value="">Select a user...</option>
                     </select>
-                    <button onclick="addSharedUser()" style="padding: 10px 20px; background: #e5a00d; color: white; border: none; border-radius: 8px; cursor: pointer;">Add</button>
+                    <button id="addUserBtn" onclick="addSharedUser()" style="padding: 10px 20px; background: #e5a00d; color: white; border: none; border-radius: 8px; cursor: pointer;">Add</button>
                 </div>
             </div>
             
@@ -958,21 +968,11 @@
         }
 
         function filterRequests() {
-            const search = document.getElementById('requestSearch').value.toLowerCase();
-            const filtered = allRequests.filter(r => 
-                r.title.toLowerCase().includes(search) || 
-                r.user_email.toLowerCase().includes(search)
-            );
-            renderRequests(filtered);
+            applyRequestFilters();
         }
 
         function filterNotifications() {
-            const search = document.getElementById('notificationSearch').value.toLowerCase();
-            const filtered = allNotifications.filter(n => 
-                n.subject.toLowerCase().includes(search) || 
-                n.user_email.toLowerCase().includes(search)
-            );
-            renderNotifications(filtered);
+            applyNotificationFilters();
         }
 
         function filterUpcoming() {
@@ -983,6 +983,74 @@
                 ep.user_email.toLowerCase().includes(search)
             );
             renderUpcoming(filtered);
+        }
+
+        // Type filter state
+        let currentRequestFilter = 'all';
+        let currentNotificationFilter = 'all';
+
+        function filterRequestsByType(type) {
+            currentRequestFilter = type;
+            
+            // Update button styles
+            document.getElementById('requestFilterAll').style.background = type === 'all' ? '#e5a00d' : 'transparent';
+            document.getElementById('requestFilterTV').style.background = type === 'tv' ? '#e5a00d' : 'transparent';
+            document.getElementById('requestFilterMovie').style.background = type === 'movie' ? '#e5a00d' : 'transparent';
+            
+            // Apply both search and type filters
+            applyRequestFilters();
+        }
+
+        function filterNotificationsByType(type) {
+            currentNotificationFilter = type;
+            
+            // Update button styles
+            document.getElementById('notificationFilterAll').style.background = type === 'all' ? '#e5a00d' : 'transparent';
+            document.getElementById('notificationFilterTV').style.background = type === 'episode' ? '#e5a00d' : 'transparent';
+            document.getElementById('notificationFilterMovie').style.background = type === 'movie' ? '#e5a00d' : 'transparent';
+            
+            // Apply both search and type filters
+            applyNotificationFilters();
+        }
+
+        function applyRequestFilters() {
+            const search = document.getElementById('requestSearch').value.toLowerCase();
+            let filtered = allRequests;
+            
+            // Apply type filter
+            if (currentRequestFilter !== 'all') {
+                filtered = filtered.filter(r => r.media_type === currentRequestFilter);
+            }
+            
+            // Apply search filter
+            if (search) {
+                filtered = filtered.filter(r => 
+                    r.title.toLowerCase().includes(search) || 
+                    r.user_email.toLowerCase().includes(search)
+                );
+            }
+            
+            renderRequests(filtered);
+        }
+
+        function applyNotificationFilters() {
+            const search = document.getElementById('notificationSearch').value.toLowerCase();
+            let filtered = allNotifications;
+            
+            // Apply type filter
+            if (currentNotificationFilter !== 'all') {
+                filtered = filtered.filter(n => n.type === currentNotificationFilter);
+            }
+            
+            // Apply search filter
+            if (search) {
+                filtered = filtered.filter(n => 
+                    n.subject.toLowerCase().includes(search) || 
+                    n.user_email.toLowerCase().includes(search)
+                );
+            }
+            
+            renderNotifications(filtered);
         }
 
         function switchTab(tabName) {
@@ -1622,7 +1690,7 @@
                 showError('Failed to add user: ' + error.message);
             } finally {
                 btn.disabled = false;
-                btn.textContent = '➕ Add';
+                btn.textContent = 'Add';
             }
         }
 
