@@ -1190,3 +1190,41 @@ async def stream_logs():
     except Exception as e:
         logger.error(f"Failed to stream logs: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/notifications/mark-old-as-sent")
+async def mark_old_notifications_as_sent(hours_old: int = 24, db: Session = Depends(get_db)):
+    """Mark old notifications as sent without emailing them"""
+    try:
+        from datetime import datetime, timedelta
+        
+        cutoff = datetime.utcnow() - timedelta(hours=hours_old)
+        
+        # Find old pending notifications
+        old_notifications = db.query(Notification).filter(
+            Notification.sent == False,
+            Notification.created_at < cutoff
+        ).all()
+        
+        count = len(old_notifications)
+        
+        # Mark them as sent
+        for notif in old_notifications:
+            notif.sent = True
+            notif.sent_at = datetime.utcnow()
+        
+        db.commit()
+        
+        logger.info(f"Marked {count} old notifications as sent (older than {hours_old} hours)")
+        
+        return {
+            "success": True,
+            "message": f"Marked {count} old notifications as sent",
+            "count": count,
+            "cutoff_hours": hours_old
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to mark old notifications: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))

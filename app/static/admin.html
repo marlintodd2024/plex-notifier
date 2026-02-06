@@ -465,6 +465,7 @@
             <button onclick="syncRequests()" id="syncRequestsBtn">🔄 Sync Requests</button>
             <button onclick="importAllEpisodes()" id="importEpisodesBtn">📥 Import All Episodes</button>
             <button onclick="processNotifications()" id="processNotifBtn">📧 Process Notifications</button>
+            <button onclick="clearOldNotifications()" id="clearOldBtn" style="background: #f44336;">🗑️ Clear Old (24h+)</button>
             <button onclick="runReconciliation()" id="reconcileBtn" class="secondary">🔍 Check Missed</button>
             <button onclick="showTestEmailModal()" class="secondary">✉️ Send Test Email</button>
             <button onclick="refreshData()" class="secondary">♻️ Refresh Data</button>
@@ -1184,6 +1185,35 @@
             } finally {
                 btn.disabled = false;
                 btn.textContent = '📧 Process Notifications';
+            }
+        }
+
+        async function clearOldNotifications() {
+            if (!confirm('Mark all notifications older than 24 hours as sent WITHOUT emailing? This cannot be undone!')) {
+                return;
+            }
+            
+            const btn = document.getElementById('clearOldBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Clearing...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/notifications/mark-old-as-sent?hours_old=24`, { 
+                    method: 'POST' 
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showSuccess(`✅ Marked ${data.count} old notifications as sent (no emails sent)`);
+                    await refreshData();
+                } else {
+                    showError(data.detail || 'Failed to clear old notifications');
+                }
+            } catch (error) {
+                showError('Failed to clear old notifications: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🗑️ Clear Old (24h+)';
             }
         }
 
