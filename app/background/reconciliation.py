@@ -54,7 +54,7 @@ async def reconcile_tv_episodes(db: Session):
             episodes = await sonarr._get(f"/episode?seriesId={series_id}")
             
             for episode in episodes:
-                # Skip if not downloaded
+                # Skip if not downloaded (hasFile = False means not downloaded)
                 if not episode.get("hasFile"):
                     continue
                 
@@ -91,7 +91,7 @@ async def reconcile_tv_episodes(db: Session):
                     )
                     db.add(tracking)
                     db.commit()
-                    logger.info(f"Created tracking for missed episode: {series.get('title')} S{season_num:02d}E{episode_num:02d}")
+                    logger.info(f"Created tracking for episode: {series.get('title')} S{season_num:02d}E{episode_num:02d}")
                 
                 # If already notified, skip
                 if tracking.notified:
@@ -121,7 +121,7 @@ async def reconcile_tv_episodes(db: Session):
                     db.commit()
                     continue
                 
-                # Missing notification! Create one
+                # Missing notification! Episode is downloaded but never notified
                 logger.info(f"Found missed episode notification: {series.get('title')} S{season_num:02d}E{episode_num:02d}")
                 
                 # Get poster
@@ -203,7 +203,7 @@ async def reconcile_movies(db: Session):
             if not movie:
                 continue
             
-            # Check if downloaded
+            # Check if downloaded (hasFile = True means downloaded)
             if not movie.get("hasFile"):
                 continue
             
@@ -216,7 +216,7 @@ async def reconcile_movies(db: Session):
             if not in_plex:
                 continue  # Not in Plex yet
             
-            # Missing notification! Create one
+            # Missing notification! Movie is downloaded but never notified
             logger.info(f"Found missed movie notification: {movie.get('title')} ({movie.get('year')})")
             
             # Get poster
