@@ -1,0 +1,66 @@
+name: 🐛 Bug Report
+description: Something isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the details below so we can investigate.
+
+  - type: input
+    id: version
+    attributes:
+      label: BingeAlert Version
+      description: Check your dashboard footer or docker image tag
+      placeholder: "e.g. v1.4.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Installation Method
+      options:
+        - Docker Pull (GHCR)
+        - Build from Source
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug
+      placeholder: "When I click Sync Users, nothing happens and no users appear..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+      placeholder: "Users from Seerr should appear in the Users tab..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: "Paste any relevant log output from `docker logs plex-notification-portal` (redact any personal info)"
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: "Any relevant details about your setup"
+      placeholder: |
+        - OS: Ubuntu 24.04 / Synology DSM 7 / Unraid / etc.
+        - Seerr: Jellyseerr v2.x / Overseerr v1.x
+        - Reverse proxy: Nginx Proxy Manager / Traefik / none
+      render: markdown
+    validations:
+      required: false
