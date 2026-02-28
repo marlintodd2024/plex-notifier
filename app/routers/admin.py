@@ -1664,7 +1664,9 @@ async def fix_issue(issue_id: int, db: Session = Depends(get_db)):
         else:
             result = {"success": False, "message": "Unknown media type"}
         
-        if result["success"]:
+        fix_succeeded = bool(result["success"])
+        
+        if fix_succeeded:
             issue.action_taken = "blacklist_research"
             logger.info(f"Manual fix initiated for issue #{issue.id}: {result['message']}")
             client_message = "Fix initiated — file blacklisted and new search triggered"
@@ -1677,7 +1679,7 @@ async def fix_issue(issue_id: int, db: Session = Depends(get_db)):
         db.commit()
         
         return {
-            "success": result["success"],
+            "success": fix_succeeded,
             "message": client_message
         }
     except HTTPException:
@@ -2189,4 +2191,3 @@ async def skip_setup(db: Session = Depends(get_db)):
         logger.error(f"Failed to skip setup: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Internal server error")
-
