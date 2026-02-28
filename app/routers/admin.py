@@ -701,8 +701,17 @@ async def download_backup(filename: str):
         from app.services.backup_service import BackupService
         from fastapi.responses import FileResponse
         
+        # Sanitize filename - prevent path traversal
+        safe_filename = os.path.basename(filename)
+        if safe_filename != filename or '..' in filename or '/' in filename or '\\' in filename:
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        
         backup_service = BackupService()
-        filepath = os.path.join(backup_service.backup_dir, filename)
+        filepath = os.path.join(backup_service.backup_dir, safe_filename)
+        
+        # Verify the resolved path is within the backup directory
+        if not os.path.realpath(filepath).startswith(os.path.realpath(backup_service.backup_dir)):
+            raise HTTPException(status_code=400, detail="Invalid filename")
         
         if not os.path.exists(filepath):
             raise HTTPException(status_code=404, detail="Backup file not found")
@@ -1651,16 +1660,18 @@ async def fix_issue(issue_id: int, db: Session = Depends(get_db)):
         if result["success"]:
             issue.action_taken = "blacklist_research"
             logger.info(f"Manual fix initiated for issue #{issue.id}: {result['message']}")
+            client_message = "Fix initiated — file blacklisted and new search triggered"
         else:
             issue.status = "failed"
             issue.error_message = result["message"]
             logger.error(f"Manual fix failed for issue #{issue.id}: {result['message']}")
+            client_message = "Fix failed — check logs for details"
         
         db.commit()
         
         return {
             "success": result["success"],
-            "message": result["message"]
+            "message": client_message
         }
     except HTTPException:
         raise
@@ -1696,9 +1707,11 @@ async def resolve_issue(issue_id: int, db: Session = Depends(get_db)):
                 if result["success"]:
                     seerr_message = " (also closed in Seerr)"
                 else:
-                    seerr_message = f" (Seerr close failed: {result['message']})"
+                    seerr_message = " (Seerr close failed)"
+                    logger.warning(f"Seerr close failed for issue {issue_id}: {result['message']}")
             except Exception as e:
-                seerr_message = f" (Seerr close failed: {e})"
+                seerr_message = " (Seerr close failed)"
+                logger.warning(f"Seerr close failed for issue {issue_id}: {e}")
         
         return {"success": True, "message": f"Issue #{issue_id} marked as resolved{seerr_message}"}
     except HTTPException:

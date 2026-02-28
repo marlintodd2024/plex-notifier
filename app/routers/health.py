@@ -31,5 +31,5 @@ async def health_check(db: Session = Depends(get_db)):
         logger.error(f"Health check failed: {e}")
         return {
             "status": "unhealthy",
-            "error": str(e)
+            "error": "Health check failed"
         }
