@@ -69,7 +69,7 @@ async def sonarr_webhook(
         except Exception as e:
             logger.error(f"Error processing Sonarr Grab webhook: {e}")
             db.rollback()
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail="Internal server error")
     
     if webhook.eventType != "Download":
         return WebhookResponse(success=False, message=f"Unsupported event type: {webhook.eventType}")
@@ -270,7 +270,7 @@ async def sonarr_webhook(
     except Exception as e:
         logger.error(f"Error processing Sonarr webhook: {e}", exc_info=True)
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/radarr", response_model=WebhookResponse)
@@ -325,7 +325,7 @@ async def radarr_webhook(
         except Exception as e:
             logger.error(f"Error processing Radarr Grab webhook: {e}")
             db.rollback()
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail="Internal server error")
     
     if webhook.eventType != "Download":
         return WebhookResponse(success=False, message=f"Unsupported event type: {webhook.eventType}")
@@ -435,7 +435,7 @@ async def radarr_webhook(
     except Exception as e:
         logger.error(f"Error processing Radarr webhook: {e}", exc_info=True)
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/jellyseerr", response_model=WebhookResponse)
@@ -593,7 +593,7 @@ async def jellyseerr_webhook(
     except Exception as e:
         logger.error(f"Error processing Jellyseerr webhook: {e}", exc_info=True)
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 async def check_request_quality_status(request_id: int):

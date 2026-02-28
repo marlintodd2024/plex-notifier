@@ -22,7 +22,7 @@ async def sync_users():
         return {"success": True, "message": "User sync completed"}
     except Exception as e:
         logger.error(f"User sync failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/sync/requests")
@@ -34,7 +34,7 @@ async def sync_requests():
         return {"success": True, "message": "Request sync completed"}
     except Exception as e:
         logger.error(f"Request sync failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/notifications/process")
@@ -46,7 +46,7 @@ async def process_notifications(db: Session = Depends(get_db)):
         return {"success": True, "message": "Notifications processed"}
     except Exception as e:
         logger.error(f"Notification processing failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/stats")
@@ -71,7 +71,7 @@ async def get_stats(db: Session = Depends(get_db)):
         return stats
     except Exception as e:
         logger.error(f"Failed to get stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/users")
@@ -282,7 +282,7 @@ async def get_upcoming_episodes(days: int = 30, db: Session = Depends(get_db)):
         
     except Exception as e:
         logger.error(f"Failed to get upcoming episodes: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/requests/{request_id}/import-episodes")
@@ -330,7 +330,7 @@ async def import_existing_episodes(request_id: int, db: Session = Depends(get_db
     except Exception as e:
         logger.error(f"Failed to import episodes for request {request_id}: {e}")
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/import-all-existing-episodes")
@@ -371,7 +371,7 @@ async def import_all_existing_episodes(db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Failed to import all existing episodes: {e}")
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/test-email")
@@ -445,7 +445,7 @@ async def send_test_email(
         raise
     except Exception as e:
         logger.error(f"Failed to send test email: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/notify-episode")
@@ -566,7 +566,7 @@ async def notify_episode_now(
     except Exception as e:
         logger.error(f"Failed to send episode notification: {e}", exc_info=True)
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/resend-notification/{notification_id}")
@@ -650,11 +650,11 @@ async def resend_notification(notification_id: int, regenerate: bool = True, db:
         raise
     except Exception as e:
         logger.error(f"Failed to resend notification: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/backup/create")
-async def create_backup(include_config: bool = True):
+async def create_backup(include_config: bool = False):
     """Create a backup of database and configuration"""
     try:
         from app.services.backup_service import BackupService
@@ -673,7 +673,7 @@ async def create_backup(include_config: bool = True):
             raise HTTPException(status_code=500, detail="Failed to create backup")
     except Exception as e:
         logger.error(f"Backup creation failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/backup/list")
@@ -691,7 +691,7 @@ async def list_backups():
         }
     except Exception as e:
         logger.error(f"Failed to list backups: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/backup/download/{filename}")
@@ -716,7 +716,7 @@ async def download_backup(filename: str):
         raise
     except Exception as e:
         logger.error(f"Failed to download backup: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/backup/restore")
@@ -749,7 +749,7 @@ async def restore_backup(file: UploadFile):
         raise
     except Exception as e:
         logger.error(f"Restore failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/backup/delete/{filename}")
@@ -772,7 +772,7 @@ async def delete_backup(filename: str):
         raise
     except Exception as e:
         logger.error(f"Failed to delete backup: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/requests/{request_id}/shared-users")
@@ -813,7 +813,7 @@ async def get_shared_users(request_id: int, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         logger.error(f"Failed to get shared users: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/requests/{request_id}/share")
@@ -865,7 +865,7 @@ async def share_request_with_user(request_id: int, user_id: int, db: Session = D
     except Exception as e:
         logger.error(f"Failed to share request: {e}")
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/requests/{request_id}/share/{user_id}")
@@ -904,7 +904,7 @@ async def unshare_request_with_user(request_id: int, user_id: int, db: Session =
     except Exception as e:
         logger.error(f"Failed to unshare request: {e}")
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/config")
@@ -913,10 +913,10 @@ async def get_config():
     import os
     
     def mask_secret(value: str) -> str:
-        """Mask sensitive values, showing only first/last 4 chars"""
-        if not value or len(value) < 8:
-            return "••••••••"
-        return f"{value[:4]}••••{value[-4:]}"
+        """SECURITY FIX [CRIT-2]: Never reveal any part of secrets"""
+        if not value or value.strip() == "":
+            return ""
+        return "••••••••"
     
     try:
         config = {
@@ -1004,7 +1004,7 @@ async def get_config():
         return config
     except Exception as e:
         logger.error(f"Failed to get config: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/config")
@@ -1274,7 +1274,7 @@ async def update_config(config: dict):
         
     except Exception as e:
         logger.error(f"Failed to update config: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/restart")
@@ -1313,9 +1313,9 @@ async def restart_container():
         raise HTTPException(status_code=500, detail="Docker CLI not available in container")
     except Exception as e:
         logger.error(f"Failed to restart container: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
         logger.error(f"Failed to update config: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/reconcile")
@@ -1334,7 +1334,7 @@ async def trigger_reconciliation():
         }
     except Exception as e:
         logger.error(f"Failed to start reconciliation: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/logs")
@@ -1366,7 +1366,7 @@ async def get_logs(lines: int = 100):
         raise HTTPException(status_code=500, detail="Docker CLI not available")
     except Exception as e:
         logger.error(f"Failed to read logs: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/logs/stream")
@@ -1399,7 +1399,7 @@ async def stream_logs():
         
     except Exception as e:
         logger.error(f"Failed to stream logs: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/notifications/mark-old-as-sent")
@@ -1437,7 +1437,7 @@ async def mark_old_notifications_as_sent(hours_old: int = 24, db: Session = Depe
     except Exception as e:
         logger.error(f"Failed to mark old notifications: {e}")
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/notifications/clear-all-pending")
@@ -1471,7 +1471,7 @@ async def clear_all_pending_notifications(db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Failed to clear pending notifications: {e}")
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/send-weekly-summary")
@@ -1490,7 +1490,7 @@ async def send_weekly_summary_now():
         }
     except Exception as e:
         logger.error(f"Failed to send weekly summary: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/check-stuck-downloads")
@@ -1509,7 +1509,7 @@ async def check_stuck_downloads_now():
         }
     except Exception as e:
         logger.error(f"Failed to check stuck downloads: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/check-quality-release")
@@ -1529,7 +1529,7 @@ async def manual_quality_release_check():
         }
     except Exception as e:
         logger.error(f"Failed to run quality/release check: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ===== Issues Management =====
@@ -1564,7 +1564,7 @@ async def get_issues(db: Session = Depends(get_db)):
         return result
     except Exception as e:
         logger.error(f"Failed to get issues: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/issues/{issue_id}/fix")
@@ -1614,7 +1614,7 @@ async def fix_issue(issue_id: int, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Failed to fix issue {issue_id}: {e}")
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/issues/{issue_id}/resolve")
@@ -1653,7 +1653,7 @@ async def resolve_issue(issue_id: int, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Failed to resolve issue {issue_id}: {e}")
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/issues/{issue_id}")
@@ -1675,7 +1675,7 @@ async def delete_issue(issue_id: int, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Failed to delete issue {issue_id}: {e}")
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/restart")
@@ -1726,7 +1726,7 @@ async def restart_container():
         )
     except Exception as e:
         logger.error(f"Failed to restart container: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/requests/{request_id}/notify-shared-user/{user_id}")
@@ -1821,7 +1821,7 @@ async def notify_shared_user_about_existing(request_id: int, user_id: int, db: S
         raise
     except Exception as e:
         logger.error(f"Failed to notify shared user: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/requests/{request_id}/share")
@@ -1877,7 +1877,7 @@ async def add_user_to_request(
         raise
     except Exception as e:
         logger.error(f"Failed to add user to request: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/request-on-behalf")
@@ -1951,7 +1951,7 @@ async def request_on_behalf(
         raise
     except Exception as e:
         logger.error(f"Failed to create request on behalf: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/test-email")
@@ -1978,7 +1978,7 @@ async def test_email_connection(data: dict):
         
     except Exception as e:
         logger.error(f"SMTP test failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/test-jellyseerr")
@@ -2001,7 +2001,7 @@ async def test_jellyseerr_connection(data: dict):
         
     except Exception as e:
         logger.error(f"Jellyseerr test failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/test-sonarr")
@@ -2024,7 +2024,7 @@ async def test_sonarr_connection(data: dict):
         
     except Exception as e:
         logger.error(f"Sonarr test failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/test-radarr")
@@ -2047,7 +2047,7 @@ async def test_radarr_connection(data: dict):
         
     except Exception as e:
         logger.error(f"Radarr test failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/setup-complete")
@@ -2072,7 +2072,7 @@ async def mark_setup_complete(db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Failed to mark setup complete: {e}")
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/setup-status")
@@ -2115,5 +2115,5 @@ async def skip_setup(db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Failed to skip setup: {e}")
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 

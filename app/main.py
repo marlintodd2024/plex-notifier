@@ -162,11 +162,17 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down BingeAlert...")
 
 
+# SECURITY FIX [CRIT-1]: Disable Swagger docs in production
+_is_dev = os.getenv("ENVIRONMENT", "production").lower() != "production"
+
 app = FastAPI(
     title="BingeAlert",
     description="Notification service for Sonarr/Radarr content available in Plex",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    docs_url="/docs" if _is_dev else None,
+    redoc_url="/redoc" if _is_dev else None,
+    openapi_url="/openapi.json" if _is_dev else None,
 )
 
 # Add authentication middleware

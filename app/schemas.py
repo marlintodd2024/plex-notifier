@@ -131,3 +131,18 @@ class WebhookResponse(BaseModel):
     success: bool
     message: str
     processed_items: Optional[int] = None
+
+
+# SECURITY FIX [MED-2]: Seerr webhook validation model
+class SeerrWebhook(BaseModel):
+    """Validates incoming Seerr webhook payloads"""
+    notification_type: str
+    media: Optional[dict] = None
+    request: Optional[dict] = None
+    subject: Optional[str] = None
+    extra: Optional[list] = None
+    message: Optional[str] = None
+    image: Optional[str] = None
+
+    class Config:
+        extra = "allow"
