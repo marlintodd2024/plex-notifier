@@ -77,6 +77,31 @@ docker compose up -d
 
 Navigate to `http://your-server:8000` — the setup wizard walks you through connecting all your services and verifying everything works.
 
+### ⚠️ Security Setup (Important)
+
+After installation, take these steps to secure your instance:
+
+1. **Generate a strong secret key** — This signs your session cookies. Never use the default.
+   ```bash
+   # Generate and add to your .env:
+   python3 -c "import secrets; print(secrets.token_hex(32))"
+   ```
+
+2. **Set `ENVIRONMENT=production`** in your `.env` — This disables the Swagger API docs (`/docs`, `/redoc`, `/openapi.json`) which expose your full API schema publicly.
+
+3. **Restrict webhook IPs** — Add `WEBHOOK_ALLOWED_IPS` to your `.env` with the IP address of your Sonarr/Radarr/Seerr server. This prevents unauthorized webhook submissions.
+   ```env
+   WEBHOOK_ALLOWED_IPS=192.168.1.100
+   ```
+
+4. **Enable authentication** — In Settings → Authentication & Security, enable auth and set an admin password. Configure your local network CIDR so LAN connections bypass login.
+
+5. **Use HTTPS** — Place BingeAlert behind a reverse proxy (Nginx Proxy Manager, Traefik, Cloudflare Tunnel) with SSL/TLS. Configure `X-Real-IP` and `X-Forwarded-For` headers.
+
+All security settings are also configurable from the **Settings** tab in the admin dashboard.
+
+> 📖 See [SECURITY.md](SECURITY.md) for the full security guide.
+
 ### Configure Webhooks
 
 Set up webhooks in each service pointing to your portal:
@@ -223,9 +248,11 @@ Authentication is **off by default**. Enable it in Settings → Authentication &
 
 ## API Documentation
 
-Interactive API docs are available at:
+Interactive API docs are available in development mode (`ENVIRONMENT=development`):
 - Swagger UI: `http://your-server:8000/docs`
 - ReDoc: `http://your-server:8000/redoc`
+
+These are disabled by default in production for security.
 
 ---
 
@@ -263,14 +290,21 @@ The reconciliation worker handles this. Check Settings → Reconciliation to see
 
 ## Security
 
-- API keys and passwords stored in `.env` (not in database)
-- Passwords displayed as masked values in the settings UI — saving preserves originals
-- Auth passwords hashed with bcrypt in the database
-- Session tokens are HMAC-signed with your `APP_SECRET_KEY`
-- Docker socket mounted read-only (for container restart feature)
-- Webhook endpoints are always public (required for Sonarr/Radarr/Seerr)
+BingeAlert includes comprehensive security hardening as of v1.2.0 (16 audit findings resolved). Key protections:
 
-For production, consider placing the portal behind a reverse proxy (nginx, Traefik, Cloudflare Tunnel) for HTTPS.
+- **Authentication middleware** with bcrypt password hashing and HMAC-signed session cookies
+- **Login rate limiting** — 5 attempts per IP per 5-minute window
+- **Local network bypass** — Configurable CIDR ranges skip login automatically
+- **Webhook IP allowlisting** — Restrict which IPs can submit webhooks via `WEBHOOK_ALLOWED_IPS`
+- **API docs disabled in production** — Set `ENVIRONMENT=production` (default)
+- **Setup wizard locked** after initial setup is complete
+- **No secrets in API responses** — Config endpoint fully masks all keys/passwords
+- **No secrets in backups** — Database exports never include `.env`
+- **Backup restore validation** — ZIP integrity, path traversal protection, file type allowlisting
+- **Generic error messages** — Internal details logged server-side only
+- **Cloudflare Turnstile** — Optional bot protection on the login page (free)
+
+For production, always place BingeAlert behind a reverse proxy with HTTPS. See [SECURITY.md](SECURITY.md) for the complete security guide.
 
 ---
 

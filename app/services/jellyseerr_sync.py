@@ -30,7 +30,7 @@ class JellyseerrSyncService:
     async def get_users(self) -> List[dict]:
         """Fetch all users from Jellyseerr"""
         try:
-            data = await self._get("/user")
+            data = await self._get("/user?take=50")
             return data.get("results", [])
         except Exception as e:
             logger.error(f"Failed to fetch users from Jellyseerr: {e}")

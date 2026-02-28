@@ -1255,6 +1255,58 @@
                 </div>
             </div>
 
+            <!-- Webhook & Application Security Section -->
+            <div style="background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+                <h3 style="margin-bottom: 10px; color: #e5a00d;">🛡️ Webhook & Application Security</h3>
+                <p style="color: #999; margin-bottom: 20px; font-size: 13px; line-height: 1.6;">
+                    Restrict which IPs can send webhooks to BingeAlert and control application-level security settings. Changes require a container restart.
+                </p>
+                
+                <!-- Webhook IP Allowlist -->
+                <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <h4 style="color: #fff; margin-bottom: 10px; font-size: 14px;">🌐 Webhook IP Allowlist</h4>
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Allowed IPs (comma-separated IPs or CIDRs)</label>
+                        <input type="text" id="config-webhook-allowed-ips" placeholder="192.168.1.100, 10.0.0.0/24" 
+                               style="width: 100%; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #e4e4e4;">
+                        <small style="color: #666; font-size: 11px;">Only these IPs can send webhooks from Sonarr/Radarr/Seerr. Leave blank to allow all IPs (not recommended for external access).</small>
+                    </div>
+                </div>
+                
+                <!-- Environment Mode -->
+                <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <h4 style="color: #fff; margin-bottom: 10px; font-size: 14px;">⚙️ Environment Mode</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Mode</label>
+                            <select id="config-environment" 
+                                    style="width: 100%; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #e4e4e4;">
+                                <option value="production">Production (recommended)</option>
+                                <option value="development">Development</option>
+                            </select>
+                            <small style="color: #666; font-size: 11px;">Production disables API docs (/docs, /redoc). Development enables them for debugging.</small>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">App Secret Key</label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="password" id="config-app-secret-key" placeholder="••••••••" 
+                                       style="flex: 1; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #e4e4e4;" readonly>
+                                <button onclick="generateSecretKey()" class="secondary" style="white-space: nowrap; padding: 8px 12px; font-size: 12px;" title="Generate a strong random key">🎲 Generate</button>
+                            </div>
+                            <small style="color: #666; font-size: 11px;" id="config-secret-key-hint">Used to sign session cookies. Click Generate for a strong random key.</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Security Status -->
+                <div id="security-status" style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px;">
+                    <h4 style="color: #fff; margin-bottom: 10px; font-size: 14px;">📋 Security Status</h4>
+                    <div id="security-checklist" style="font-size: 13px; line-height: 2;">
+                        <!-- Populated by loadConfig -->
+                    </div>
+                </div>
+            </div>
+
             <!-- Services Section -->
             <h3 style="margin-bottom: 15px; color: #e5a00d;">🔗 Connected Services</h3>
             <p style="color: #999; margin-bottom: 20px; font-size: 13px;">Configure connections to your media management services.</p>
@@ -2755,6 +2807,39 @@
         }
 
         // Config Management Functions
+        function generateSecretKey() {
+            const array = new Uint8Array(32);
+            crypto.getRandomValues(array);
+            const key = Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
+            const input = document.getElementById('config-app-secret-key');
+            input.readOnly = false;
+            input.type = 'text';
+            input.value = key;
+            document.getElementById('config-secret-key-hint').innerHTML = '✅ New key generated — <strong>save settings and restart</strong> to apply.';
+            document.getElementById('config-secret-key-hint').style.color = '#e5a00d';
+        }
+
+        function updateSecurityChecklist(config) {
+            const el = document.getElementById('security-checklist');
+            if (!el) return;
+            const checks = [];
+            
+            const hasAuth = config.auth?.enabled === true;
+            const hasPassword = config.auth?.has_password === true;
+            const hasCidr = !!config.auth?.local_network_cidr;
+            const hasWebhookIps = !!config.security?.webhook_allowed_ips;
+            const isProd = config.security?.environment === 'production';
+            const hasStrongKey = config.security?.secret_key_status === 'strong';
+            
+            checks.push(`<span style="color: ${hasAuth && hasPassword ? '#4caf50' : '#ff5252'};">${hasAuth && hasPassword ? '✅' : '❌'} Authentication ${hasAuth ? 'enabled' : 'disabled'}${hasAuth && !hasPassword ? ' (no password set!)' : ''}</span>`);
+            checks.push(`<span style="color: ${hasCidr ? '#4caf50' : '#ff9800'};">${hasCidr ? '✅' : '⚠️'} Local network CIDR ${hasCidr ? 'configured' : 'not set'}</span>`);
+            checks.push(`<span style="color: ${hasWebhookIps ? '#4caf50' : '#ff9800'};">${hasWebhookIps ? '✅' : '⚠️'} Webhook IP allowlist ${hasWebhookIps ? 'configured' : 'not set (all IPs allowed)'}</span>`);
+            checks.push(`<span style="color: ${isProd ? '#4caf50' : '#ff9800'};">${isProd ? '✅' : '⚠️'} Environment: ${config.security?.environment || 'production'} ${!isProd ? '(API docs exposed!)' : ''}</span>`);
+            checks.push(`<span style="color: ${hasStrongKey ? '#4caf50' : '#ff5252'};">${hasStrongKey ? '✅' : '❌'} Secret key ${hasStrongKey ? 'is strong' : 'is weak/default — generate a new one!'}</span>`);
+            
+            el.innerHTML = checks.join('<br>');
+        }
+
         async function loadConfig() {
             try {
                 const response = await fetch(`${API_BASE}/admin/config`);
@@ -2860,6 +2945,26 @@
                     document.getElementById('logoutBtn').style.display = config.auth.enabled ? 'block' : 'none';
                 }
                 
+                // Populate Security fields
+                if (config.security) {
+                    document.getElementById('config-webhook-allowed-ips').value = config.security.webhook_allowed_ips || '';
+                    document.getElementById('config-environment').value = config.security.environment || 'production';
+                    const secretInput = document.getElementById('config-app-secret-key');
+                    secretInput.value = config.security.secret_key_status === 'strong' ? '••••••••' : '';
+                    secretInput.readOnly = true;
+                    secretInput.type = 'password';
+                    const hint = document.getElementById('config-secret-key-hint');
+                    if (config.security.secret_key_status === 'strong') {
+                        hint.textContent = '✅ Secret key is set. Click Generate to replace it.';
+                        hint.style.color = '#666';
+                    } else {
+                        hint.innerHTML = '❌ <strong>Weak or default key detected!</strong> Click Generate to create a strong key.';
+                        hint.style.color = '#ff5252';
+                    }
+                    
+                    updateSecurityChecklist(config);
+                }
+                
                 showSuccess('Configuration loaded');
             } catch (error) {
                 showError('Failed to load configuration: ' + error.message);
@@ -2947,6 +3052,15 @@
                         turnstile_enabled: document.getElementById('config-turnstile-enabled').checked,
                         turnstile_site_key: document.getElementById('config-turnstile-site-key').value,
                         turnstile_secret_key: document.getElementById('config-turnstile-secret-key').value
+                    },
+                    security: {
+                        webhook_allowed_ips: document.getElementById('config-webhook-allowed-ips').value.trim(),
+                        environment: document.getElementById('config-environment').value,
+                        app_secret_key: (() => {
+                            const input = document.getElementById('config-app-secret-key');
+                            // Only send if user generated a new key (not the masked placeholder)
+                            return input.readOnly ? '' : input.value;
+                        })()
                     }
                 };
                 

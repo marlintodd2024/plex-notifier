@@ -725,13 +725,48 @@ async def restore_backup(file: UploadFile):
     try:
         from app.services.backup_service import BackupService
         import tempfile
-        
+        import zipfile
+
+        # SECURITY FIX [MED-4]: Validate upload
+        if not file.filename or not file.filename.endswith('.zip'):
+            raise HTTPException(status_code=400, detail="Only .zip files are accepted")
+
+        # Read and validate size (max 50MB)
+        content = await file.read()
+        max_size = 50 * 1024 * 1024
+        if len(content) > max_size:
+            raise HTTPException(status_code=400, detail="File too large (max 50MB)")
+
         # Save uploaded file temporarily
         with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as temp_file:
-            content = await file.read()
             temp_file.write(content)
             temp_path = temp_file.name
-        
+
+        # SECURITY FIX [MED-4]: Validate ZIP contents before restore
+        try:
+            with zipfile.ZipFile(temp_path, 'r') as zf:
+                names = zf.namelist()
+                if 'metadata.json' not in names:
+                    os.remove(temp_path)
+                    raise HTTPException(status_code=400, detail="Invalid backup: missing metadata.json")
+                if 'database.sql' not in names:
+                    os.remove(temp_path)
+                    raise HTTPException(status_code=400, detail="Invalid backup: missing database.sql")
+                for name in names:
+                    if name.startswith('/') or '..' in name:
+                        os.remove(temp_path)
+                        logger.warning(f"Zip-slip attempt detected: {name}")
+                        raise HTTPException(status_code=400, detail="Invalid backup: suspicious file paths")
+                allowed_extensions = {'.json', '.sql', '.txt'}
+                for name in names:
+                    ext = os.path.splitext(name)[1].lower()
+                    if ext and ext not in allowed_extensions:
+                        os.remove(temp_path)
+                        raise HTTPException(status_code=400, detail=f"Invalid backup: unexpected file type")
+        except zipfile.BadZipFile:
+            os.remove(temp_path)
+            raise HTTPException(status_code=400, detail="Invalid or corrupted ZIP file")
+
         backup_service = BackupService()
         success = backup_service.restore_backup(temp_path)
         
@@ -957,7 +992,12 @@ async def get_config():
             "issue_autofix": {
                 "mode": os.getenv("ISSUE_AUTOFIX_MODE", "manual")
             },
-            "admin_email": os.getenv("ADMIN_EMAIL", "")
+            "admin_email": os.getenv("ADMIN_EMAIL", ""),
+            "security": {
+                "webhook_allowed_ips": os.getenv("WEBHOOK_ALLOWED_IPS", ""),
+                "environment": os.getenv("ENVIRONMENT", "production"),
+                "secret_key_status": "strong" if os.getenv("APP_SECRET_KEY", "") not in ("", "default-secret", "change-me", "CHANGE_ME_random_string_here", "CHANGE_ME_TO_A_RANDOM_STRING") and len(os.getenv("APP_SECRET_KEY", "")) >= 32 else "weak"
+            }
         }
         
         # Load auth settings from database
@@ -1167,6 +1207,19 @@ async def update_config(config: dict):
             if mode in ('manual', 'auto', 'auto_notify'):
                 env_dict['ISSUE_AUTOFIX_MODE'] = mode
                 updates.append('ISSUE_AUTOFIX_MODE')
+        
+        # Security settings (stored in .env)
+        if 'security' in config:
+            sec = config['security']
+            if 'webhook_allowed_ips' in sec:
+                env_dict['WEBHOOK_ALLOWED_IPS'] = sec['webhook_allowed_ips']
+                updates.append('WEBHOOK_ALLOWED_IPS')
+            if sec.get('environment') in ('production', 'development'):
+                env_dict['ENVIRONMENT'] = sec['environment']
+                updates.append('ENVIRONMENT')
+            if sec.get('app_secret_key') and not is_masked_value(sec['app_secret_key']):
+                env_dict['APP_SECRET_KEY'] = sec['app_secret_key']
+                updates.append('APP_SECRET_KEY')
         
         # Auth settings (stored in database, not .env)
         if 'auth' in config:

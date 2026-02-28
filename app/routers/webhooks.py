@@ -1,4 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
+import os
+import ipaddress
 from sqlalchemy.orm import Session
 import logging
 from datetime import datetime
@@ -11,15 +13,44 @@ from app.services.sonarr_service import SonarrService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _check_webhook_ip(request: Request):
+    """
+    SECURITY FIX [HIGH-1]: Validate webhook source IP.
+    If WEBHOOK_ALLOWED_IPS is set, only those IPs can send webhooks.
+    If not set, all IPs are allowed (backwards compatible).
+    """
+    allowed = os.getenv("WEBHOOK_ALLOWED_IPS", "").strip()
+    if not allowed:
+        return
+    from app.auth import get_client_ip
+    client_ip = get_client_ip(request)
+    allowed_list = [ip.strip() for ip in allowed.split(",") if ip.strip()]
+    for allowed_ip in allowed_list:
+        try:
+            if "/" in allowed_ip:
+                if ipaddress.ip_address(client_ip) in ipaddress.ip_network(allowed_ip, strict=False):
+                    return
+            else:
+                if client_ip == allowed_ip:
+                    return
+        except ValueError:
+            continue
+    logger.warning(f"Webhook rejected: IP {client_ip} not in allowed list")
+    raise HTTPException(status_code=403, detail="Forbidden")
+
 email_service = EmailService()
 
 
 @router.post("/sonarr", response_model=WebhookResponse)
 async def sonarr_webhook(
+    request: Request,
     webhook: SonarrWebhook,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
+    _check_webhook_ip(request)
     """
     Handle webhooks from Sonarr
     Supported events: Grab, Download, Test
@@ -275,10 +306,12 @@ async def sonarr_webhook(
 
 @router.post("/radarr", response_model=WebhookResponse)
 async def radarr_webhook(
+    request: Request,
     webhook: RadarrWebhook,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
+    _check_webhook_ip(request)
     """
     Handle webhooks from Radarr
     Supported events: Grab, Download, Test
@@ -440,10 +473,12 @@ async def radarr_webhook(
 
 @router.post("/jellyseerr", response_model=WebhookResponse)
 async def jellyseerr_webhook(
+    request: Request,
     webhook: dict,  # Using dict because Seerr webhook format varies
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
+    _check_webhook_ip(request)
     """
     Handle webhooks from Seerr for request events and issue reports
     Supports: MEDIA_PENDING, MEDIA_APPROVED, MEDIA_AUTO_APPROVED, MEDIA_AVAILABLE,
