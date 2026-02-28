@@ -197,23 +197,14 @@ class BackupService:
     def delete_backup(self, filename: str) -> bool:
         """Delete a backup file"""
         try:
-            # Sanitize filename - prevent path traversal
-            safe_filename = os.path.basename(filename)
-            if safe_filename != filename:
-                logger.warning(f"Path traversal attempt in delete_backup: {filename}")
-                return False
-            
-            filepath = os.path.join(self.backup_dir, safe_filename)
-            
-            # Verify the resolved path is within the backup directory
-            if not os.path.realpath(filepath).startswith(os.path.realpath(self.backup_dir)):
-                logger.warning(f"Path traversal attempt in delete_backup: {filename}")
-                return False
-            
-            if os.path.exists(filepath):
-                os.remove(filepath)
-                logger.info(f"Deleted backup: {safe_filename}")
-                return True
+            # Validate filename against actual directory listing (no user input in path construction)
+            backup_dir = os.path.realpath(self.backup_dir)
+            for entry in os.listdir(backup_dir):
+                full_path = os.path.join(backup_dir, entry)
+                if os.path.isfile(full_path) and entry == filename:
+                    os.remove(full_path)
+                    logger.info(f"Deleted backup: {entry}")
+                    return True
             return False
         except Exception as e:
             logger.error(f"Failed to delete backup: {e}")

@@ -701,24 +701,31 @@ async def download_backup(filename: str):
         from app.services.backup_service import BackupService
         from fastapi.responses import FileResponse
         
-        # Sanitize filename - prevent path traversal
-        safe_filename = os.path.basename(filename)
-        if safe_filename != filename or '..' in filename or '/' in filename or '\\' in filename:
-            raise HTTPException(status_code=400, detail="Invalid filename")
-        
         backup_service = BackupService()
-        filepath = os.path.join(backup_service.backup_dir, safe_filename)
         
-        # Verify the resolved path is within the backup directory
-        if not os.path.realpath(filepath).startswith(os.path.realpath(backup_service.backup_dir)):
-            raise HTTPException(status_code=400, detail="Invalid filename")
+        # Validate filename against actual directory listing (no user input in path construction)
+        available_files = []
+        backup_dir = os.path.realpath(backup_service.backup_dir)
+        for entry in os.listdir(backup_dir):
+            full_path = os.path.join(backup_dir, entry)
+            if os.path.isfile(full_path) and entry.endswith('.zip'):
+                available_files.append((entry, full_path))
         
-        if not os.path.exists(filepath):
+        # Match requested filename against known safe files
+        matched_path = None
+        matched_name = None
+        for name, path in available_files:
+            if name == filename:
+                matched_path = path
+                matched_name = name
+                break
+        
+        if not matched_path:
             raise HTTPException(status_code=404, detail="Backup file not found")
         
         return FileResponse(
-            path=filepath,
-            filename=filename,
+            path=matched_path,
+            filename=matched_name,
             media_type="application/zip"
         )
     except HTTPException:
@@ -1655,7 +1662,7 @@ async def fix_issue(issue_id: int, db: Session = Depends(get_db)):
             sonarr_svc = SonarrService()
             result = await sonarr_svc.blacklist_and_research_series(issue.tmdb_id)
         else:
-            result = {"success": False, "message": f"Unknown media type: {issue.media_type}"}
+            result = {"success": False, "message": "Unknown media type"}
         
         if result["success"]:
             issue.action_taken = "blacklist_research"
