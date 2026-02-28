@@ -7,15 +7,15 @@ Thanks for your interest! Here's how to contribute.
 Open an issue with:
 - What you expected vs what happened
 - Steps to reproduce
-- Docker logs (`docker logs plex-notification-portal`)
+- Docker logs (`docker logs bingealert`)
 - Browser console errors (if UI-related)
 
 ## Development Setup
 
 ```bash
 # Clone
-git clone https://github.com/YOUR_USERNAME/plex-notification-portal.git
-cd plex-notification-portal
+git clone https://github.com/YOUR_USERNAME/bingealert.git
+cd bingealert
 
 # Python virtual environment
 python -m venv venv

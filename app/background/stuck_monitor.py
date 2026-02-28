@@ -273,7 +273,7 @@ def generate_stuck_alert_email(stuck_items):
             </div>
             
             <div class="footer">
-                <p>This is an automated alert from your Plex Notification Portal</p>
+                <p>This is an automated alert from your BingeAlert</p>
                 <p>Generated on {datetime.utcnow().strftime('%B %d, %Y at %I:%M %p')} UTC</p>
             </div>
         </div>
@@ -389,7 +389,7 @@ def generate_auto_fix_email(fixed_items):
             </div>
             
             <div class="footer">
-                <p>This is an automated fix from your Plex Notification Portal</p>
+                <p>This is an automated fix from your BingeAlert</p>
                 <p>Generated on {datetime.utcnow().strftime('%B %d, %Y at %I:%M %p')} UTC</p>
             </div>
         </div>

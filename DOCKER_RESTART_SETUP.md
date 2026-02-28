@@ -6,7 +6,7 @@ For the "🔄 Restart" button to work, the container needs access to the Docker 
 
 ```yaml
 services:
-  plex-notification-portal:
+  bingealert:
     # ... other config ...
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro  # Add this line

@@ -167,7 +167,7 @@ def generate_summary_html(user_stats, start_date, end_date, total_count):
             </div>
             
             <div class="footer">
-                <p>This is an automated weekly summary from your Plex Notification Portal</p>
+                <p>This is an automated weekly summary from your BingeAlert</p>
                 <p>Generated on {datetime.utcnow().strftime('%B %d, %Y at %I:%M %p')} UTC</p>
             </div>
         </div>

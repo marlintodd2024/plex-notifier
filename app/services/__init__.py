@@ -1,1 +1,1 @@
-# Plex Notification Portal - Services Package
+# BingeAlert - Services Package

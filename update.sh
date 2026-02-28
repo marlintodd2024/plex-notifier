@@ -1,7 +1,7 @@
 #!/bin/bash
-# Update script for Plex Notification Portal
+# Update script for BingeAlert
 
-echo "🔄 Updating Plex Notification Portal..."
+echo "🔄 Updating BingeAlert..."
 echo ""
 
 # Stop and remove old containers
@@ -9,7 +9,7 @@ echo "📦 Stopping old containers..."
 docker-compose down
 
 # Remove old images (optional - uncomment to save space)
-# docker rmi plex-notifier-portal-api 2>/dev/null || true
+# docker rmi bingealert 2>/dev/null || true
 
 # Pull latest and rebuild
 echo "🔨 Building new version..."

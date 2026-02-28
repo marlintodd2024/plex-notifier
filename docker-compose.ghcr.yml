@@ -1,6 +1,6 @@
 version: '3.8'
 
-# Plex Notification Portal - Docker Compose (Pre-built Image)
+# BingeAlert - Docker Compose (Pre-built Image)
 # 
 # Quick start:
 #   1. Download this file and .env.example
@@ -11,7 +11,7 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15
-    container_name: plex-notification-db
+    container_name: bingealert-db
     environment:
       POSTGRES_DB: notifications
       POSTGRES_USER: notifyuser
@@ -26,8 +26,8 @@ services:
         max-file: "3"
 
   portal-api:
-    image: ghcr.io/marlintodd2024/plex-notifier:latest
-    container_name: plex-notification-portal
+    image: ghcr.io/marlintodd2024/bingealert:latest
+    container_name: bingealert
     depends_on:
       - postgres
     ports:

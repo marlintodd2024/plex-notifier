@@ -58,7 +58,7 @@ async def process_notifications_periodically():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
-    logger.info("Starting Plex Notification Portal...")
+    logger.info("Starting BingeAlert...")
     
     # Create database tables
     Base.metadata.create_all(bind=engine)
@@ -159,11 +159,11 @@ async def lifespan(app: FastAPI):
     # except asyncio.CancelledError:
     #     logger.info("Periodic sync task cancelled")
     
-    logger.info("Shutting down Plex Notification Portal...")
+    logger.info("Shutting down BingeAlert...")
 
 
 app = FastAPI(
-    title="Plex Notification Portal",
+    title="BingeAlert",
     description="Notification service for Sonarr/Radarr content available in Plex",
     version="1.0.0",
     lifespan=lifespan
@@ -366,7 +366,7 @@ async def setup_redirect():
 @app.get("/api-info")
 async def api_info():
     return {
-        "message": "Plex Notification Portal API",
+        "message": "BingeAlert API",
         "version": "1.0.0",
         "docs": "/docs",
         "redoc": "/redoc",

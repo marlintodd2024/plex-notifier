@@ -1,1 +1,1 @@
-"""Background workers for the Plex Notification Portal"""
+"""Background workers for the BingeAlert"""

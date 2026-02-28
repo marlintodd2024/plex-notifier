@@ -1,1 +1,1 @@
-# Plex Notification Portal - Main Application Package
+# BingeAlert - Main Application Package

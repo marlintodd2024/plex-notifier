@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "================================================"
-echo "Plex Notification Portal - Setup Script"
+echo "BingeAlert - Setup Script"
 echo "================================================"
 echo ""
 
@@ -40,7 +40,7 @@ else
 fi
 
 echo ""
-echo "🚀 Starting Plex Notification Portal..."
+echo "🚀 Starting BingeAlert..."
 echo ""
 
 # Build and start containers

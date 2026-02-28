@@ -3,7 +3,7 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15
-    container_name: plex-notification-db
+    container_name: bingealert-db
     environment:
       POSTGRES_DB: notifications
       POSTGRES_USER: notifyuser
@@ -19,7 +19,7 @@ services:
 
   portal-api:
     build: .
-    container_name: plex-notification-portal
+    container_name: bingealert
     depends_on:
       - postgres
     ports:

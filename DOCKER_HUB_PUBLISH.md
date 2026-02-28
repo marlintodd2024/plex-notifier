@@ -9,7 +9,7 @@
 ## Step 2: Create Repository
 
 1. Click "Create Repository"
-2. Name: `plex-notification-portal`
+2. Name: `bingealert`
 3. Description: "Intelligent notification system for Plex media servers"
 4. Visibility: Public
 5. Click "Create"
@@ -25,20 +25,20 @@ docker login
 
 ```bash
 # Build the image
-docker build -t yourusername/plex-notification-portal:latest .
+docker build -t yourusername/bingealert:latest .
 
 # Tag with version
-docker tag yourusername/plex-notification-portal:latest yourusername/plex-notification-portal:v1.0.0
+docker tag yourusername/bingealert:latest yourusername/bingealert:v1.0.0
 ```
 
 ## Step 5: Push to Docker Hub
 
 ```bash
 # Push latest
-docker push yourusername/plex-notification-portal:latest
+docker push yourusername/bingealert:latest
 
 # Push version
-docker push yourusername/plex-notification-portal:v1.0.0
+docker push yourusername/bingealert:v1.0.0
 ```
 
 ## Step 6: Update Docker Hub Description
@@ -52,14 +52,14 @@ docker push yourusername/plex-notification-portal:v1.0.0
 
 ```bash
 # Create directory
-mkdir plex-notification-portal
-cd plex-notification-portal
+mkdir bingealert
+cd bingealert
 
 # Download docker-compose
-curl -O https://raw.githubusercontent.com/yourusername/plex-notification-portal/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/yourusername/bingealert/main/docker-compose.yml
 
 # Download .env template
-curl -O https://raw.githubusercontent.com/yourusername/plex-notification-portal/main/.env.example
+curl -O https://raw.githubusercontent.com/yourusername/bingealert/main/.env.example
 mv .env.example .env
 
 # Edit configuration
@@ -71,7 +71,7 @@ docker-compose up -d
 
 Access at: http://localhost:8000
 
-See full docs: https://github.com/yourusername/plex-notification-portal
+See full docs: https://github.com/yourusername/bingealert
 ```
 
 ## Automated Builds with GitHub Actions
@@ -97,7 +97,7 @@ docker buildx create --name multiarch --use
 # Build for multiple platforms
 docker buildx build \
   --platform linux/amd64,linux/arm64,linux/arm/v7 \
-  -t yourusername/plex-notification-portal:latest \
+  -t yourusername/bingealert:latest \
   --push .
 ```
 
@@ -120,6 +120,6 @@ Change image reference:
 ```yaml
 services:
   portal-api:
-    image: yourusername/plex-notification-portal:latest
+    image: yourusername/bingealert:latest
     # Remove 'build: .' line
 ```

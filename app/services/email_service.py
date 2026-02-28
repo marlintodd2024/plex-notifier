@@ -103,7 +103,7 @@ class EmailService:
                     <p style="margin-top: 20px;">Head over to Plex to start watching!</p>
                 </div>
                 <div class="footer">
-                    <p>This is an automated notification from your Plex Notification Portal</p>
+                    <p>This is an automated notification from your BingeAlert</p>
                 </div>
             </div>
         </body>
@@ -145,7 +145,7 @@ class EmailService:
                     <p style="margin-top: 30px;">Grab some popcorn and enjoy! 🍿</p>
                 </div>
                 <div class="footer">
-                    <p>This is an automated notification from your Plex Notification Portal</p>
+                    <p>This is an automated notification from your BingeAlert</p>
                 </div>
             </div>
         </body>
@@ -415,7 +415,7 @@ class EmailService:
         <!-- Footer -->
         <div style="background: rgba(0,0,0,0.2); padding: 25px 30px; text-align: center; border-top: 1px solid rgba(255,255,255,0.1);">
             <p style="margin: 0; color: rgba(255,255,255,0.5); font-size: 12px;">
-                🎬 Plex Notification Portal
+                🎬 BingeAlert
             </p>
             <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.3); font-size: 11px;">
                 Sit back and relax - we'll let you know when it's ready to watch!
@@ -497,7 +497,7 @@ class EmailService:
         <!-- Footer -->
         <div style="background: rgba(0,0,0,0.2); padding: 25px 30px; text-align: center; border-top: 1px solid rgba(255,255,255,0.1);">
             <p style="margin: 0; color: rgba(255,255,255,0.5); font-size: 12px;">
-                🎬 Plex Notification Portal
+                🎬 BingeAlert
             </p>
             <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.3); font-size: 11px;">
                 Quality matters - we're on it!
@@ -580,7 +580,7 @@ class EmailService:
         <!-- Footer -->
         <div style="background: rgba(0,0,0,0.2); padding: 25px 30px; text-align: center; border-top: 1px solid rgba(255,255,255,0.1);">
             <p style="margin: 0; color: rgba(255,255,255,0.5); font-size: 12px;">
-                🎬 Plex Notification Portal
+                🎬 BingeAlert
             </p>
             <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.3); font-size: 11px;">
                 We're here to make sure everything works perfectly!
@@ -671,7 +671,7 @@ class EmailService:
         <!-- Footer -->
         <div style="background: rgba(0,0,0,0.2); padding: 25px 30px; text-align: center; border-top: 1px solid rgba(255,255,255,0.1);">
             <p style="margin: 0; color: rgba(255,255,255,0.5); font-size: 12px;">
-                🎬 Plex Notification Portal — Admin Alert
+                🎬 BingeAlert — Admin Alert
             </p>
         </div>
     </div>

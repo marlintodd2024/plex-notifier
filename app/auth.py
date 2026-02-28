@@ -1,5 +1,5 @@
 """
-Authentication middleware for the Plex Notification Portal.
+Authentication middleware for the BingeAlert.
 
 Features:
 - Local network bypass (configurable CIDR)

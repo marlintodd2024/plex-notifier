@@ -1,4 +1,4 @@
-# 📬 Plex Notification Portal
+# 📬 BingeAlert
 
 A self-hosted notification system for Plex media servers that integrates with **Seerr** (Jellyseerr/Overseerr), **Sonarr**, and **Radarr** to send intelligent email notifications when requested content is ready to watch.
 
@@ -52,8 +52,8 @@ No cloning needed — just download two files and go:
 
 ```bash
 # Download the compose file and config template
-curl -O https://raw.githubusercontent.com/marlintodd2024/plex-notifier/main/docker-compose.ghcr.yml
-curl -O https://raw.githubusercontent.com/marlintodd2024/plex-notifier/main/.env.example
+curl -O https://raw.githubusercontent.com/marlintodd2024/bingealert/main/docker-compose.ghcr.yml
+curl -O https://raw.githubusercontent.com/marlintodd2024/bingealert/main/.env.example
 
 # Configure
 cp .env.example .env
@@ -66,8 +66,8 @@ docker compose -f docker-compose.ghcr.yml up -d
 ### Option B: Build from Source
 
 ```bash
-git clone https://github.com/marlintodd2024/plex-notifier.git
-cd plex-notification-portal
+git clone https://github.com/marlintodd2024/bingealert.git
+cd bingealert
 cp .env.example .env
 nano .env   # Fill in your settings
 docker compose up -d
@@ -191,7 +191,7 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=you@gmail.com
 SMTP_PASSWORD=your_app_password
-SMTP_FROM=Plex Notifications <you@gmail.com>
+SMTP_FROM=BingeAlert <you@gmail.com>
 APP_SECRET_KEY=random_string_here
 ```
 
@@ -277,7 +277,7 @@ For production, consider placing the portal behind a reverse proxy (nginx, Traef
 ## Project Structure
 
 ```
-plex-notification-portal/
+bingealert/
 ├── app/
 │   ├── main.py              # FastAPI app, lifespan, auth routes
 │   ├── auth.py              # Authentication middleware & helpers

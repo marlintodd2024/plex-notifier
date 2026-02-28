@@ -1,1 +1,1 @@
-# Plex Notification Portal - Routers Package
+# BingeAlert - Routers Package

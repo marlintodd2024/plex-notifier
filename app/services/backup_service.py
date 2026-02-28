@@ -24,7 +24,7 @@ class BackupService:
         """
         try:
             timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-            backup_name = f"plex_notifier_backup_{timestamp}"
+            backup_name = f"bingealert_backup_{timestamp}"
             temp_dir = tempfile.mkdtemp()
             
             # Backup database using pg_dump

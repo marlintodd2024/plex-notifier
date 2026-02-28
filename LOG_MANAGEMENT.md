@@ -32,14 +32,14 @@ Docker automatically:
 ### Via Docker:
 ```bash
 # Last 100 lines
-docker logs plex-notification-portal --tail 100
+docker logs bingealert --tail 100
 
 # Follow live
-docker logs -f plex-notification-portal
+docker logs -f bingealert
 
 # Specific time range
-docker logs plex-notification-portal --since 2h
-docker logs plex-notification-portal --since "2024-02-19T10:00:00"
+docker logs bingealert --since 2h
+docker logs bingealert --since "2024-02-19T10:00:00"
 ```
 
 ## Adjust Log Retention
@@ -86,7 +86,7 @@ Logs compress well (usually 5-10x compression), so actual disk usage is much les
 If needed, clear all logs:
 ```bash
 # Truncate logs (keeps container running)
-truncate -s 0 $(docker inspect --format='{{.LogPath}}' plex-notification-portal)
+truncate -s 0 $(docker inspect --format='{{.LogPath}}' bingealert)
 ```
 
 ## Best Practices

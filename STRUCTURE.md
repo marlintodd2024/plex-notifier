@@ -1,7 +1,7 @@
 # Project Structure
 
 ```
-plex-notification-portal/
+bingealert/
 │
 ├── app/                           # Main application code
 │   ├── __init__.py

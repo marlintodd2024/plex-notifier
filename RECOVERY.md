@@ -12,8 +12,8 @@ docker volume ls | grep plex
 ```
 
 Look for volumes like:
-- `plex-notifier_postgres_data`
-- `plex-notification-portal_postgres_data`
+- `bingealert_postgres_data`
+- `bingealert_postgres_data`
 - `postgres_data`
 
 ### Step 2: Find the old volume
@@ -38,7 +38,7 @@ To this:
 volumes:
   postgres_data:
     external: true
-    name: <your-old-volume-name>  # e.g., plex-notifier_postgres_data
+    name: <your-old-volume-name>  # e.g., bingealert_postgres_data
 ```
 
 Then restart:
@@ -57,7 +57,7 @@ docker-compose up -d postgres
 sleep 5
 
 # 3. Restore from backup file
-docker exec -i plex-notifications-db psql -U notifyuser -d notifications < backup.sql
+docker exec -i bingealert-db psql -U notifyuser -d notifications < backup.sql
 ```
 
 ## Preventing Future Loss
@@ -100,9 +100,9 @@ This will rebuild your tracking data from Jellyseerr and Sonarr.
 
 ## Current Volume Name
 
-Your docker-compose.yml creates: `plex-notification-portal_postgres_data`
+Your docker-compose.yml creates: `bingealert_postgres_data`
 
 Check if it exists:
 ```bash
-docker volume inspect plex-notification-portal_postgres_data
+docker volume inspect bingealert_postgres_data
 ```

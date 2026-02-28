@@ -32,7 +32,7 @@ Get up and running in 5 minutes!
 ```bash
 # Clone repository
 git clone <your-repo-url>
-cd plex-notification-portal
+cd bingealert
 
 # Copy environment file
 cp .env.example .env
@@ -53,7 +53,7 @@ RADARR_API_KEY=your_key_here
 SMTP_HOST=smtp.gmail.com
 SMTP_USER=your_email@gmail.com
 SMTP_PASSWORD=your_app_password
-SMTP_FROM=Plex Notifications <your_email@gmail.com>
+SMTP_FROM=BingeAlert <your_email@gmail.com>
 ```
 
 ## 4. Start Services
