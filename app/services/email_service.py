@@ -690,3 +690,303 @@ class EmailService:
             mode_text=mode_text
         )
 
+    def render_maintenance_announcement(self, title: str, description: str, start_time: str, end_time: str, duration: str) -> str:
+        """Render maintenance window announcement email"""
+        template = Template("""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
+    <div style="max-width: 600px; margin: 40px auto; background: linear-gradient(135deg, #0f3460 0%, #16213e 100%); border-radius: 20px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5);">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, rgba(255, 152, 0, 0.25) 0%, rgba(255, 152, 0, 0.08) 100%); padding: 30px; text-align: center; border-bottom: 2px solid rgba(255, 152, 0, 0.3);">
+            <div style="font-size: 48px; margin-bottom: 10px;">🔧</div>
+            <h1 style="margin: 0; color: #ff9800; font-size: 28px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">Scheduled Maintenance</h1>
+            <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.7); font-size: 14px;">Plex will be temporarily unavailable</p>
+        </div>
+        
+        <!-- Content -->
+        <div style="padding: 40px 30px;">
+            <div style="background: rgba(255,255,255,0.05); border-left: 4px solid #ff9800; padding: 25px; border-radius: 12px; margin-bottom: 25px;">
+                <h2 style="margin: 0 0 10px 0; color: #ffffff; font-size: 22px; font-weight: 600;">{{ title }}</h2>
+                {% if description %}
+                <p style="margin: 0; color: rgba(255,255,255,0.7); font-size: 15px; line-height: 1.6;">{{ description }}</p>
+                {% endif %}
+            </div>
+            
+            <div style="display: flex; gap: 15px; margin-bottom: 25px;">
+                <div style="flex: 1; background: linear-gradient(135deg, rgba(255, 152, 0, 0.15) 0%, rgba(255, 152, 0, 0.05) 100%); border-radius: 12px; padding: 20px; text-align: center;">
+                    <div style="font-size: 12px; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Starts</div>
+                    <div style="font-size: 18px; color: #ff9800; font-weight: 700;">{{ start_time }}</div>
+                </div>
+                <div style="flex: 1; background: linear-gradient(135deg, rgba(255, 152, 0, 0.15) 0%, rgba(255, 152, 0, 0.05) 100%); border-radius: 12px; padding: 20px; text-align: center;">
+                    <div style="font-size: 12px; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Ends</div>
+                    <div style="font-size: 18px; color: #ff9800; font-weight: 700;">{{ end_time }}</div>
+                </div>
+            </div>
+            
+            <div style="background: rgba(255, 152, 0, 0.1); border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 25px;">
+                <div style="font-size: 14px; color: rgba(255,255,255,0.6); margin-bottom: 5px;">Estimated Duration</div>
+                <div style="font-size: 24px; color: #ff9800; font-weight: 700;">{{ duration }}</div>
+            </div>
+            
+            <div style="background: rgba(255,255,255,0.03); border-radius: 12px; padding: 20px; text-align: center;">
+                <p style="margin: 0; color: rgba(255,255,255,0.8); font-size: 15px; line-height: 1.6;">
+                    Plex and related services may be unavailable during this time. We'll send you another email when everything is back up!
+                </p>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div style="background: rgba(0,0,0,0.2); padding: 25px 30px; text-align: center; border-top: 1px solid rgba(255,255,255,0.1);">
+            <p style="margin: 0; color: rgba(255,255,255,0.5); font-size: 12px;">🎬 BingeAlert</p>
+            <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.3); font-size: 11px;">We'll have things back to normal as soon as possible!</p>
+        </div>
+    </div>
+</body>
+</html>
+        """)
+        
+        return template.render(
+            title=title,
+            description=description,
+            start_time=start_time,
+            end_time=end_time,
+            duration=duration
+        )
+
+    def render_maintenance_reminder(self, title: str, description: str, start_time: str, end_time: str, duration: str, minutes_until: int) -> str:
+        """Render maintenance window reminder email (sent ~1 hour before)"""
+        template = Template("""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
+    <div style="max-width: 600px; margin: 40px auto; background: linear-gradient(135deg, #0f3460 0%, #16213e 100%); border-radius: 20px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5);">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, rgba(255, 87, 34, 0.25) 0%, rgba(255, 87, 34, 0.08) 100%); padding: 30px; text-align: center; border-bottom: 2px solid rgba(255, 87, 34, 0.3);">
+            <div style="font-size: 48px; margin-bottom: 10px;">⏰</div>
+            <h1 style="margin: 0; color: #ff5722; font-size: 28px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">Maintenance Starting Soon!</h1>
+            <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.7); font-size: 14px;">Plex will be going down in approximately {{ minutes_until }} minutes</p>
+        </div>
+        
+        <!-- Content -->
+        <div style="padding: 40px 30px;">
+            <div style="background: rgba(255,255,255,0.05); border-left: 4px solid #ff5722; padding: 25px; border-radius: 12px; margin-bottom: 25px;">
+                <h2 style="margin: 0 0 10px 0; color: #ffffff; font-size: 22px; font-weight: 600;">{{ title }}</h2>
+                {% if description %}
+                <p style="margin: 0; color: rgba(255,255,255,0.7); font-size: 15px; line-height: 1.6;">{{ description }}</p>
+                {% endif %}
+            </div>
+            
+            <div style="background: linear-gradient(135deg, rgba(255, 87, 34, 0.2) 0%, rgba(255, 87, 34, 0.05) 100%); border-radius: 12px; padding: 25px; text-align: center; margin-bottom: 25px;">
+                <div style="font-size: 48px; margin-bottom: 10px;">⚠️</div>
+                <div style="font-size: 20px; color: #ff5722; font-weight: 700;">Starting in ~{{ minutes_until }} minutes</div>
+                <div style="font-size: 14px; color: rgba(255,255,255,0.6); margin-top: 8px;">{{ start_time }} — {{ end_time }}</div>
+                <div style="font-size: 13px; color: rgba(255,255,255,0.5); margin-top: 5px;">Estimated duration: {{ duration }}</div>
+            </div>
+            
+            <div style="background: rgba(255,255,255,0.03); border-radius: 12px; padding: 20px; text-align: center;">
+                <p style="margin: 0; color: rgba(255,255,255,0.8); font-size: 15px; line-height: 1.6;">
+                    If you're currently watching something, now is a good time to finish up. We'll email you again when everything is back online!
+                </p>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div style="background: rgba(0,0,0,0.2); padding: 25px 30px; text-align: center; border-top: 1px solid rgba(255,255,255,0.1);">
+            <p style="margin: 0; color: rgba(255,255,255,0.5); font-size: 12px;">🎬 BingeAlert</p>
+            <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.3); font-size: 11px;">Heads up! Maintenance starts soon.</p>
+        </div>
+    </div>
+</body>
+</html>
+        """)
+        
+        return template.render(
+            title=title,
+            description=description,
+            start_time=start_time,
+            end_time=end_time,
+            duration=duration,
+            minutes_until=minutes_until
+        )
+
+    def render_maintenance_complete(self, title: str, description: str = None) -> str:
+        """Render maintenance complete / we're back email"""
+        template = Template("""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
+    <div style="max-width: 600px; margin: 40px auto; background: linear-gradient(135deg, #0f3460 0%, #16213e 100%); border-radius: 20px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5);">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, rgba(76, 175, 80, 0.25) 0%, rgba(76, 175, 80, 0.08) 100%); padding: 30px; text-align: center; border-bottom: 2px solid rgba(76, 175, 80, 0.3);">
+            <div style="font-size: 48px; margin-bottom: 10px;">✅</div>
+            <h1 style="margin: 0; color: #4caf50; font-size: 28px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">We're Back!</h1>
+            <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.7); font-size: 14px;">Maintenance is complete — Plex is back online</p>
+        </div>
+        
+        <!-- Content -->
+        <div style="padding: 40px 30px;">
+            <div style="background: rgba(255,255,255,0.05); border-left: 4px solid #4caf50; padding: 25px; border-radius: 12px; margin-bottom: 25px;">
+                <h2 style="margin: 0 0 10px 0; color: #ffffff; font-size: 22px; font-weight: 600;">{{ title }}</h2>
+                {% if description %}
+                <p style="margin: 0; color: rgba(255,255,255,0.7); font-size: 15px; line-height: 1.6;">{{ description }}</p>
+                {% endif %}
+            </div>
+            
+            <div style="background: linear-gradient(135deg, rgba(76, 175, 80, 0.15) 0%, rgba(76, 175, 80, 0.05) 100%); border-radius: 12px; padding: 30px; text-align: center; margin-bottom: 25px;">
+                <div style="font-size: 64px; margin-bottom: 15px;">🎉</div>
+                <div style="font-size: 22px; color: #4caf50; font-weight: 700;">All Systems Operational</div>
+                <div style="font-size: 14px; color: rgba(255,255,255,0.6); margin-top: 10px;">Everything is back to normal. Happy streaming!</div>
+            </div>
+            
+            <div style="background: rgba(255,255,255,0.03); border-radius: 12px; padding: 20px; text-align: center;">
+                <p style="margin: 0; color: rgba(255,255,255,0.8); font-size: 15px; line-height: 1.6;">
+                    Plex and all related services are now fully operational. If you experience any issues, please let your admin know.
+                </p>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div style="background: rgba(0,0,0,0.2); padding: 25px 30px; text-align: center; border-top: 1px solid rgba(255,255,255,0.1);">
+            <p style="margin: 0; color: rgba(255,255,255,0.5); font-size: 12px;">🎬 BingeAlert</p>
+            <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.3); font-size: 11px;">Thanks for your patience! Enjoy your shows. 🍿</p>
+        </div>
+    </div>
+</body>
+</html>
+        """)
+        
+        return template.render(
+            title=title,
+            description=description
+        )
+
+    def render_maintenance_cancelled(self, title: str) -> str:
+        """Render maintenance cancelled email"""
+        template = Template("""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
+    <div style="max-width: 600px; margin: 40px auto; background: linear-gradient(135deg, #0f3460 0%, #16213e 100%); border-radius: 20px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5);">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, rgba(33, 150, 243, 0.25) 0%, rgba(33, 150, 243, 0.08) 100%); padding: 30px; text-align: center; border-bottom: 2px solid rgba(33, 150, 243, 0.3);">
+            <div style="font-size: 48px; margin-bottom: 10px;">ℹ️</div>
+            <h1 style="margin: 0; color: #2196f3; font-size: 28px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">Maintenance Cancelled</h1>
+            <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.7); font-size: 14px;">Good news — no downtime!</p>
+        </div>
+        
+        <!-- Content -->
+        <div style="padding: 40px 30px;">
+            <div style="background: rgba(255,255,255,0.05); border-left: 4px solid #2196f3; padding: 25px; border-radius: 12px; margin-bottom: 25px;">
+                <h2 style="margin: 0 0 10px 0; color: #ffffff; font-size: 22px; font-weight: 600;">{{ title }}</h2>
+                <p style="margin: 0; color: rgba(255,255,255,0.7); font-size: 15px; line-height: 1.6;">
+                    The previously scheduled maintenance has been cancelled. No downtime will occur — continue enjoying Plex as usual!
+                </p>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div style="background: rgba(0,0,0,0.2); padding: 25px 30px; text-align: center; border-top: 1px solid rgba(255,255,255,0.1);">
+            <p style="margin: 0; color: rgba(255,255,255,0.5); font-size: 12px;">🎬 BingeAlert</p>
+            <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.3); font-size: 11px;">Nothing to see here — carry on streaming! 🍿</p>
+        </div>
+    </div>
+</body>
+</html>
+        """)
+        
+        return template.render(title=title)
+
+    async def send_maintenance_email_to_all_users(self, db, email_type: str, window) -> dict:
+        """Send a maintenance email to all users. Returns dict with sent/failed counts."""
+        from app.database import User
+        
+        users = db.query(User).all()
+        if not users:
+            logger.warning("No users found to send maintenance email")
+            return {"sent": 0, "failed": 0, "total": 0}
+        
+        # Format times for display
+        start_str = window.start_time.strftime("%B %d, %Y at %I:%M %p UTC")
+        end_str = window.end_time.strftime("%B %d, %Y at %I:%M %p UTC")
+        
+        # Calculate duration
+        delta = window.end_time - window.start_time
+        total_minutes = int(delta.total_seconds() / 60)
+        if total_minutes >= 60:
+            hours = total_minutes // 60
+            mins = total_minutes % 60
+            duration = f"{hours}h {mins}m" if mins else f"{hours} hour{'s' if hours > 1 else ''}"
+        else:
+            duration = f"{total_minutes} minutes"
+        
+        # Render appropriate template
+        if email_type == "announcement":
+            subject = f"🔧 Scheduled Maintenance: {window.title}"
+            html_body = self.render_maintenance_announcement(
+                title=window.title,
+                description=window.description or "",
+                start_time=start_str,
+                end_time=end_str,
+                duration=duration
+            )
+        elif email_type == "reminder":
+            minutes_until = max(1, int((window.start_time - datetime.utcnow()).total_seconds() / 60))
+            subject = f"⏰ Maintenance Starting Soon: {window.title}"
+            html_body = self.render_maintenance_reminder(
+                title=window.title,
+                description=window.description or "",
+                start_time=start_str,
+                end_time=end_str,
+                duration=duration,
+                minutes_until=minutes_until
+            )
+        elif email_type == "complete":
+            subject = f"✅ Maintenance Complete: {window.title}"
+            html_body = self.render_maintenance_complete(
+                title=window.title,
+                description=window.description
+            )
+        elif email_type == "cancelled":
+            subject = f"ℹ️ Maintenance Cancelled: {window.title}"
+            html_body = self.render_maintenance_cancelled(title=window.title)
+        else:
+            logger.error(f"Unknown maintenance email type: {email_type}")
+            return {"sent": 0, "failed": 0, "total": len(users)}
+        
+        sent = 0
+        failed = 0
+        for user in users:
+            try:
+                success = await self.send_email(user.email, subject, html_body)
+                if success:
+                    sent += 1
+                else:
+                    failed += 1
+            except Exception as e:
+                logger.error(f"Failed to send maintenance email to {user.email}: {e}")
+                failed += 1
+        
+        logger.info(f"Maintenance {email_type} email: sent={sent}, failed={failed}, total={len(users)}")
+        return {"sent": sent, "failed": failed, "total": len(users)}
+

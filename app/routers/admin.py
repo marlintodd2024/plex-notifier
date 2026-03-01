@@ -5,7 +5,7 @@ import logging
 import os
 from datetime import datetime
 
-from app.database import get_db, User, MediaRequest, EpisodeTracking, Notification, SharedRequest, SystemConfig
+from app.database import get_db, User, MediaRequest, EpisodeTracking, Notification, SharedRequest, SystemConfig, MaintenanceWindow
 from app.services.jellyseerr_sync import JellyseerrSyncService
 from app.services.email_service import EmailService
 
@@ -2189,6 +2189,291 @@ async def skip_setup(db: Session = Depends(get_db)):
         
     except Exception as e:
         logger.error(f"Failed to skip setup: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# ──────────────────────────────────────
+# Maintenance Window Endpoints
+# ──────────────────────────────────────
+
+@router.get("/maintenance")
+async def list_maintenance_windows(db: Session = Depends(get_db)):
+    """List all maintenance windows"""
+    try:
+        windows = db.query(MaintenanceWindow).order_by(MaintenanceWindow.start_time.desc()).all()
+        return [{
+            "id": w.id,
+            "title": w.title,
+            "description": w.description,
+            "start_time": w.start_time.isoformat() if w.start_time else None,
+            "end_time": w.end_time.isoformat() if w.end_time else None,
+            "status": w.status,
+            "announcement_sent": w.announcement_sent,
+            "reminder_sent": w.reminder_sent,
+            "completion_sent": w.completion_sent,
+            "cancelled": w.cancelled,
+            "created_at": w.created_at.isoformat() if w.created_at else None,
+        } for w in windows]
+    except Exception as e:
+        logger.error(f"Failed to list maintenance windows: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/maintenance")
+async def create_maintenance_window(data: dict, db: Session = Depends(get_db)):
+    """Create a new maintenance window and send announcement email to all users"""
+    try:
+        title = data.get("title", "").strip()
+        description = data.get("description", "").strip()
+        start_time_str = data.get("start_time")
+        end_time_str = data.get("end_time")
+        send_announcement = data.get("send_announcement", True)
+        
+        if not title:
+            raise HTTPException(status_code=400, detail="Title is required")
+        if not start_time_str or not end_time_str:
+            raise HTTPException(status_code=400, detail="Start time and end time are required")
+        
+        # Parse datetime strings
+        try:
+            start_time = datetime.fromisoformat(start_time_str.replace("Z", "+00:00")).replace(tzinfo=None)
+            end_time = datetime.fromisoformat(end_time_str.replace("Z", "+00:00")).replace(tzinfo=None)
+        except (ValueError, AttributeError) as e:
+            raise HTTPException(status_code=400, detail=f"Invalid datetime format: {e}")
+        
+        if end_time <= start_time:
+            raise HTTPException(status_code=400, detail="End time must be after start time")
+        
+        # Create window
+        window = MaintenanceWindow(
+            title=title,
+            description=description if description else None,
+            start_time=start_time,
+            end_time=end_time,
+            status="scheduled"
+        )
+        db.add(window)
+        db.commit()
+        db.refresh(window)
+        
+        logger.info(f"Created maintenance window '{title}' ({start_time} - {end_time})")
+        
+        # Send announcement email
+        email_result = None
+        if send_announcement:
+            email_service = EmailService()
+            email_result = await email_service.send_maintenance_email_to_all_users(db, "announcement", window)
+            window.announcement_sent = True
+            db.commit()
+        
+        return {
+            "success": True,
+            "message": f"Maintenance window created{' and announcement sent' if send_announcement else ''}",
+            "id": window.id,
+            "email_result": email_result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to create maintenance window: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create maintenance window: {str(e)}")
+
+
+@router.put("/maintenance/{window_id}")
+async def update_maintenance_window(window_id: int, data: dict, db: Session = Depends(get_db)):
+    """Update a maintenance window (reschedule). Optionally sends update email."""
+    try:
+        window = db.query(MaintenanceWindow).filter(MaintenanceWindow.id == window_id).first()
+        if not window:
+            raise HTTPException(status_code=404, detail="Maintenance window not found")
+        
+        if window.status in ("completed", "cancelled"):
+            raise HTTPException(status_code=400, detail="Cannot update a completed or cancelled window")
+        
+        if "title" in data and data["title"].strip():
+            window.title = data["title"].strip()
+        if "description" in data:
+            window.description = data["description"].strip() if data["description"] else None
+        
+        if "start_time" in data:
+            try:
+                window.start_time = datetime.fromisoformat(data["start_time"].replace("Z", "+00:00")).replace(tzinfo=None)
+            except (ValueError, AttributeError):
+                raise HTTPException(status_code=400, detail="Invalid start_time format")
+        
+        if "end_time" in data:
+            try:
+                window.end_time = datetime.fromisoformat(data["end_time"].replace("Z", "+00:00")).replace(tzinfo=None)
+            except (ValueError, AttributeError):
+                raise HTTPException(status_code=400, detail="Invalid end_time format")
+        
+        if window.end_time <= window.start_time:
+            raise HTTPException(status_code=400, detail="End time must be after start time")
+        
+        window.updated_at = datetime.utcnow()
+        
+        # Reset reminder if rescheduled to the future
+        if window.start_time > datetime.utcnow():
+            window.reminder_sent = False
+            window.status = "scheduled"
+        
+        db.commit()
+        
+        # Optionally send update announcement
+        email_result = None
+        if data.get("send_update_email", False):
+            email_service = EmailService()
+            email_result = await email_service.send_maintenance_email_to_all_users(db, "announcement", window)
+            window.announcement_sent = True
+            db.commit()
+        
+        logger.info(f"Updated maintenance window '{window.title}' (id={window_id})")
+        return {
+            "success": True,
+            "message": "Maintenance window updated",
+            "email_result": email_result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update maintenance window: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/maintenance/{window_id}/complete")
+async def complete_maintenance_window(window_id: int, db: Session = Depends(get_db)):
+    """Manually mark maintenance as complete (early completion) and send completion email"""
+    try:
+        window = db.query(MaintenanceWindow).filter(MaintenanceWindow.id == window_id).first()
+        if not window:
+            raise HTTPException(status_code=404, detail="Maintenance window not found")
+        
+        if window.status == "completed":
+            raise HTTPException(status_code=400, detail="Window is already completed")
+        if window.cancelled:
+            raise HTTPException(status_code=400, detail="Window was cancelled")
+        
+        # Send completion email
+        email_service = EmailService()
+        email_result = await email_service.send_maintenance_email_to_all_users(db, "complete", window)
+        
+        window.status = "completed"
+        window.completion_sent = True
+        window.updated_at = datetime.utcnow()
+        db.commit()
+        
+        logger.info(f"Manually completed maintenance window '{window.title}' (id={window_id})")
+        return {
+            "success": True,
+            "message": "Maintenance marked as complete — emails sent",
+            "email_result": email_result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to complete maintenance window: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/maintenance/{window_id}/cancel")
+async def cancel_maintenance_window(window_id: int, data: dict = None, db: Session = Depends(get_db)):
+    """Cancel a maintenance window and optionally send cancellation email"""
+    try:
+        window = db.query(MaintenanceWindow).filter(MaintenanceWindow.id == window_id).first()
+        if not window:
+            raise HTTPException(status_code=404, detail="Maintenance window not found")
+        
+        if window.status == "completed":
+            raise HTTPException(status_code=400, detail="Cannot cancel a completed window")
+        
+        send_email = True
+        if data and "send_email" in data:
+            send_email = data["send_email"]
+        
+        # Send cancellation email if announcement was sent
+        email_result = None
+        if send_email and window.announcement_sent:
+            email_service = EmailService()
+            email_result = await email_service.send_maintenance_email_to_all_users(db, "cancelled", window)
+        
+        window.cancelled = True
+        window.status = "cancelled"
+        window.updated_at = datetime.utcnow()
+        db.commit()
+        
+        logger.info(f"Cancelled maintenance window '{window.title}' (id={window_id})")
+        return {
+            "success": True,
+            "message": f"Maintenance window cancelled{' — cancellation emails sent' if email_result else ''}",
+            "email_result": email_result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to cancel maintenance window: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.delete("/maintenance/{window_id}")
+async def delete_maintenance_window(window_id: int, db: Session = Depends(get_db)):
+    """Delete a maintenance window (no email sent)"""
+    try:
+        window = db.query(MaintenanceWindow).filter(MaintenanceWindow.id == window_id).first()
+        if not window:
+            raise HTTPException(status_code=404, detail="Maintenance window not found")
+        
+        title = window.title
+        db.delete(window)
+        db.commit()
+        
+        logger.info(f"Deleted maintenance window '{title}' (id={window_id})")
+        return {"success": True, "message": f"Maintenance window '{title}' deleted"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete maintenance window: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/maintenance/{window_id}/send-reminder")
+async def send_maintenance_reminder(window_id: int, db: Session = Depends(get_db)):
+    """Manually send a reminder email for a maintenance window"""
+    try:
+        window = db.query(MaintenanceWindow).filter(MaintenanceWindow.id == window_id).first()
+        if not window:
+            raise HTTPException(status_code=404, detail="Maintenance window not found")
+        
+        if window.cancelled or window.status == "completed":
+            raise HTTPException(status_code=400, detail="Cannot send reminder for cancelled/completed window")
+        
+        email_service = EmailService()
+        email_result = await email_service.send_maintenance_email_to_all_users(db, "reminder", window)
+        
+        window.reminder_sent = True
+        db.commit()
+        
+        logger.info(f"Manually sent reminder for maintenance window '{window.title}'")
+        return {
+            "success": True,
+            "message": "Reminder emails sent",
+            "email_result": email_result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to send maintenance reminder: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Internal server error")
 

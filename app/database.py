@@ -135,6 +135,24 @@ class ReportedIssue(Base):
     request = relationship("MediaRequest")
 
 
+class MaintenanceWindow(Base):
+    """Scheduled maintenance windows with email notifications to all users"""
+    __tablename__ = "maintenance_windows"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)  # e.g. "Server Updates & Maintenance"
+    description = Column(Text, nullable=True)  # Optional details about what's being done
+    start_time = Column(DateTime, nullable=False)
+    end_time = Column(DateTime, nullable=False)
+    announcement_sent = Column(Boolean, default=False)
+    reminder_sent = Column(Boolean, default=False)
+    completion_sent = Column(Boolean, default=False)
+    cancelled = Column(Boolean, default=False)
+    status = Column(String, nullable=False, default="scheduled")  # 'scheduled', 'active', 'completed', 'cancelled'
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class Notification(Base):
     __tablename__ = "notifications"
     

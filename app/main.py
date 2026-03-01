@@ -118,6 +118,15 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Failed to start quality/release monitor: {e}")
         quality_monitor_task = None
     
+    # Start maintenance window worker (checks every 60 seconds for reminders/auto-complete)
+    try:
+        from app.background.maintenance_worker import maintenance_window_worker
+        maintenance_worker_task = asyncio.create_task(maintenance_window_worker())
+        logger.info("Started maintenance window worker (checks every 60 seconds)")
+    except Exception as e:
+        logger.warning(f"Failed to start maintenance window worker: {e}")
+        maintenance_worker_task = None
+    
     logger.info("Using Jellyseerr webhooks for real-time request tracking")
     
     yield
@@ -132,6 +141,8 @@ async def lifespan(app: FastAPI):
         stuck_monitor_task.cancel()
     if quality_monitor_task:
         quality_monitor_task.cancel()
+    if maintenance_worker_task:
+        maintenance_worker_task.cancel()
     try:
         await notification_task
     except asyncio.CancelledError:
@@ -151,6 +162,11 @@ async def lifespan(app: FastAPI):
             await stuck_monitor_task
         except asyncio.CancelledError:
             logger.info("Stuck download monitor cancelled")
+    if maintenance_worker_task:
+        try:
+            await maintenance_worker_task
+        except asyncio.CancelledError:
+            logger.info("Maintenance window worker cancelled")
     
     # Cancel background task on shutdown (if enabled)
     # sync_task.cancel()
