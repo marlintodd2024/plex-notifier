@@ -56,6 +56,9 @@ A guided 6-step setup for new installations that walks through connecting Seerr,
 ### 📬 Weekly Summary
 Every Sunday, admins receive a summary email with stats on requests processed, notifications sent, and any issues that need attention.
 
+### 🔧 Maintenance Windows
+Schedule planned downtime and automatically notify all users. Create a maintenance window with start and end times — an announcement email goes out immediately, a reminder fires ~1 hour before, and a completion email sends when it's over (automatically or manually). Cancel a window and users get a cancellation notice. All background workers (notification processing, reconciliation, quality monitoring, stuck download detection, weekly summary) automatically pause during active maintenance windows to avoid noisy errors from unavailable services.
+
 ### 🎬 Request on Behalf
 Admins can create requests on behalf of other users directly from the dashboard — paste a Seerr URL, pick a user, and go.
 
@@ -268,6 +271,9 @@ Authentication is **off by default**. Enable it in Settings → Authentication &
 | Quality Monitor | 24 hours (configurable) | Checks pending requests for release/quality status |
 | Stuck Download Monitor | 30 minutes | Detects TBA titles and stuck downloads |
 | Weekly Summary | Sundays 9 AM UTC | Sends activity summary to admin |
+| Maintenance Worker | 60 seconds | Sends reminders, auto-completes maintenance windows |
+
+> **Note:** All workers except the Maintenance Worker automatically pause during active maintenance windows to avoid errors from unavailable services.
 
 ---
 
@@ -360,7 +366,9 @@ bingealert/
 │   │   ├── reconciliation.py
 │   │   ├── quality_monitor.py
 │   │   ├── stuck_monitor.py
-│   │   └── weekly_summary.py
+│   │   ├── weekly_summary.py
+│   │   ├── maintenance_worker.py  # Maintenance window lifecycle
+│   │   └── utils.py               # Shared worker utilities
 │   └── static/
 │       ├── admin.html       # Admin dashboard
 │       ├── login.html       # Login page

@@ -507,6 +507,8 @@ def generate_auto_fix_email(fixed_items):
 
 async def stuck_download_monitor():
     """Background worker that checks for stuck downloads every 30 minutes"""
+    from app.background.utils import is_maintenance_active
+    
     logger.info("⚠️ Stuck download monitor started - will check every 30 minutes")
     
     # Clear alerted items every 24 hours so we can re-alert
@@ -514,8 +516,11 @@ async def stuck_download_monitor():
     
     while True:
         try:
-            # Check for stuck downloads
-            await check_and_alert_stuck_downloads()
+            if is_maintenance_active():
+                logger.info("🔧 Maintenance active — skipping stuck download check")
+            else:
+                # Check for stuck downloads
+                await check_and_alert_stuck_downloads()
             
             # Clear alert cache every 24 hours
             now = datetime.utcnow()

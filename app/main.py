@@ -37,12 +37,18 @@ async def process_notifications_periodically():
     """Background task to process pending notifications every minute"""
     from app.services.email_service import EmailService
     from app.database import get_db
+    from app.background.utils import is_maintenance_active
     
     email_service = EmailService()
     
     while True:
         try:
             await asyncio.sleep(60)  # Check every 60 seconds
+            
+            if is_maintenance_active():
+                logger.debug("Maintenance active — skipping notification processing")
+                continue
+            
             logger.debug("Checking for pending notifications...")
             
             db = next(get_db())

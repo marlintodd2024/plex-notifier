@@ -160,3 +160,86 @@ The migration will automatically run and add the `send_after` column.
 - All three can be deployed independently
 - No breaking changes to existing functionality
 
+---
+
+## ✅ Feature 4: Maintenance Windows - COMPLETE (v1.5.0)
+
+### What Was Done:
+1. **Database Changes:**
+   - Added `maintenance_windows` table with status lifecycle tracking
+   - Created migration `007_add_maintenance_windows.py`
+
+2. **Email Templates (4 types):**
+   - 🔧 **Announcement** — yellow/warning theme, sent when window is scheduled
+   - ⏰ **Reminder** — orange theme, sent ~1 hour before start
+   - ✅ **Completion** — green theme, sent when maintenance ends
+   - ℹ️ **Cancellation** — blue theme, sent if window is cancelled
+
+3. **Background Worker:**
+   - `maintenance_worker.py` runs every 60 seconds
+   - Auto-sends reminder when within 60 minutes of start time
+   - Auto-transitions status to "active" when start time is reached
+   - Auto-sends completion email and marks "completed" when end time is reached
+
+4. **Maintenance-Aware Workers:**
+   - All 5 existing background workers check for active maintenance before each cycle
+   - Shared `is_maintenance_active()` utility in `background/utils.py`
+   - Workers skip their cycle during active maintenance (avoids noisy API errors)
+   - Workers affected: notification processor, reconciliation, quality monitor, stuck download monitor, weekly summary
+
+5. **API Endpoints (7 new):**
+   - `GET /admin/maintenance` — list all windows
+   - `POST /admin/maintenance` — create + send announcement
+   - `PUT /admin/maintenance/{id}` — update/reschedule
+   - `POST /admin/maintenance/{id}/complete` — early completion
+   - `POST /admin/maintenance/{id}/cancel` — cancel + notify
+   - `DELETE /admin/maintenance/{id}` — delete (no email)
+   - `POST /admin/maintenance/{id}/send-reminder` — manual reminder
+
+6. **Admin UI:**
+   - New 🔧 Maintenance tab in dashboard
+   - Schedule form with title, description, start/end datetime
+   - Toggle to send/skip announcement email
+   - Window list with status badges and email tracking icons
+   - Action buttons: Remind, Complete, Cancel, Delete
+
+7. **Security Dependencies:**
+   - python-multipart 0.0.6 → 0.0.20 (fixes 3 High CVEs)
+   - jinja2 3.1.3 → 3.1.6 (fixes 4 Moderate CVEs)
+
+### How It Works:
+```
+Admin schedules maintenance window
+        │
+        ├─ Announcement email sent to all users (immediate)
+        │
+        ├─ ~60 min before start → Reminder email sent automatically
+        │
+        ├─ Start time reached → Status changes to "active"
+        │   └─ All background workers pause (skip cycles)
+        │
+        ├─ End time reached → Completion email sent automatically
+        │   └─ Status changes to "completed"
+        │   └─ Background workers resume
+        │
+        └─ (Alternative) Admin clicks Complete early or Cancel
+            └─ Appropriate email sent, workers resume
+```
+
+### Files Created:
+- `app/background/maintenance_worker.py` — Background lifecycle worker
+- `app/background/utils.py` — Shared `is_maintenance_active()` utility
+- `alembic/versions/007_add_maintenance_windows.py` — Migration
+
+### Files Modified:
+- `app/database.py` — Added `MaintenanceWindow` model
+- `app/services/email_service.py` — 4 email templates + `send_maintenance_email_to_all_users()`
+- `app/routers/admin.py` — 7 maintenance API endpoints
+- `app/main.py` — Registered maintenance worker + maintenance check in notification processor
+- `app/static/admin.html` — New Maintenance tab with schedule form + window list
+- `app/background/reconciliation.py` — Added maintenance check
+- `app/background/quality_monitor.py` — Added maintenance check
+- `app/background/stuck_monitor.py` — Added maintenance check
+- `app/background/weekly_summary.py` — Added maintenance check
+- `requirements.txt` — Updated python-multipart and jinja2
+

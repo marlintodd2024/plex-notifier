@@ -215,6 +215,8 @@ async def send_weekly_summary():
 
 async def weekly_summary_worker():
     """Background worker that sends weekly summary every Sunday at 9 AM"""
+    from app.background.utils import is_maintenance_active
+    
     logger.info("📊 Weekly summary worker started - will run every Sunday at 9 AM UTC")
     
     while True:
@@ -237,6 +239,11 @@ async def weekly_summary_worker():
             
             # Sleep until next Sunday
             await asyncio.sleep(sleep_seconds)
+            
+            # Check maintenance before sending
+            if is_maintenance_active():
+                logger.info("🔧 Maintenance active — skipping weekly summary")
+                continue
             
             # Send summary
             await send_weekly_summary()

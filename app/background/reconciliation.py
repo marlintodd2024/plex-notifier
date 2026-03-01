@@ -550,13 +550,19 @@ async def run_reconciliation():
 
 async def reconciliation_worker():
     """Background worker that runs reconciliation periodically"""
+    from app.background.utils import is_maintenance_active
+    
     logger.info("🔄 Reconciliation worker started")
     
     while True:
         try:
             recon_settings = get_reconciliation_settings()
             interval_hours = recon_settings['interval_hours']
-            await run_reconciliation()
+            
+            if is_maintenance_active():
+                logger.info("🔧 Maintenance active — skipping reconciliation cycle")
+            else:
+                await run_reconciliation()
         except Exception as e:
             logger.error(f"Reconciliation worker error: {e}")
             interval_hours = 2  # fallback

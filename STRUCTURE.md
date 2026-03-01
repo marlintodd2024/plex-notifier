@@ -64,7 +64,7 @@ bingealert/
 - Configuration validation using Pydantic
 
 **database.py**
-- SQLAlchemy models (User, MediaRequest, EpisodeTracking, Notification)
+- SQLAlchemy models (User, MediaRequest, EpisodeTracking, Notification, MaintenanceWindow)
 - Database session management
 - Database connection setup
 
@@ -88,6 +88,13 @@ bingealert/
 - GET /admin/users - List users
 - GET /admin/requests - List requests
 - GET /admin/notifications - List notifications
+- GET /admin/maintenance - List maintenance windows
+- POST /admin/maintenance - Schedule maintenance window
+- PUT /admin/maintenance/{id} - Update/reschedule window
+- POST /admin/maintenance/{id}/complete - Mark complete
+- POST /admin/maintenance/{id}/cancel - Cancel window
+- DELETE /admin/maintenance/{id} - Delete window
+- POST /admin/maintenance/{id}/send-reminder - Manual reminder
 
 **health.py**
 - GET /health - Health check and service status
@@ -165,6 +172,11 @@ Radarr → Webhook → webhooks.py → Database
 - Queue of email notifications
 - Tracks sent/pending status
 - Stores email content and delivery errors
+
+### maintenance_windows
+- Scheduled maintenance windows with start/end times
+- Tracks email states (announcement, reminder, completion sent)
+- Status lifecycle: scheduled → active → completed/cancelled
 
 ## Docker Services
 

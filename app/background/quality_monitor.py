@@ -447,12 +447,15 @@ async def run_quality_release_monitor():
 async def quality_release_monitor_worker():
     """Background worker that runs at configured interval"""
     from app.config import settings
+    from app.background.utils import is_maintenance_active
     
     logger.info("Quality/Release monitor worker started")
     
     while True:
         try:
-            if settings.quality_monitor_enabled:
+            if is_maintenance_active():
+                logger.info("🔧 Maintenance active — skipping quality/release check")
+            elif settings.quality_monitor_enabled:
                 await run_quality_release_monitor()
             else:
                 logger.debug("Quality monitoring is disabled in settings")
