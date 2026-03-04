@@ -18,6 +18,25 @@ logger = logging.getLogger(__name__)
 alerted_items = set()
 
 
+def _is_import_failure(messages):
+    """Check if status messages indicate an import failure that needs auto-remediation.
+    Covers: no eligible files, already imported, manual import required, matched by ID, etc."""
+    import_failure_patterns = [
+        'no files found are eligible for import',
+        'not eligible for import',
+        'has already been imported',
+        'manual import required',
+        'matched to movie by id',
+        'matched to series by id',
+        'unable to import automatically',
+    ]
+    for msg in messages:
+        msg_lower = msg.lower()
+        if any(pattern in msg_lower for pattern in import_failure_patterns):
+            return True
+    return False
+
+
 async def check_sonarr_queue():
     """Check Sonarr queue for stuck downloads and auto-fix TBA titles"""
     logger.info("Checking Sonarr queue for stuck downloads...")
@@ -52,13 +71,8 @@ async def check_sonarr_queue():
             # Check for TBA title issue
             has_tba_issue = any('TBA' in msg or 'episode title' in msg.lower() for msg in messages)
             
-            # Check for import failure (no eligible files)
-            has_import_failure = any(
-                'no files found are eligible for import' in msg.lower() or
-                'not eligible for import' in msg.lower() or
-                'has already been imported' in msg.lower()
-                for msg in messages
-            )
+            # Check for import failure using shared detection
+            has_import_failure = _is_import_failure(messages)
             
             if has_import_failure and item_id:
                 alert_key = f"sonarr_{item_id}_import_fix"
@@ -92,7 +106,7 @@ async def check_sonarr_queue():
                             'series_title': series_title,
                             'episode_title': title,
                             'action': 'Blocklist & Re-search',
-                            'reason': 'No eligible files for import'
+                            'reason': 'Import failure — ' + (messages[0] if messages else 'No eligible files')
                         })
                         
                         alerted_items.add(alert_key)
@@ -193,7 +207,7 @@ async def check_sonarr_queue():
 
 
 async def check_radarr_queue():
-    """Check Radarr queue for stuck downloads"""
+    """Check Radarr queue for stuck downloads and auto-fix import failures"""
     logger.info("Checking Radarr queue for stuck downloads...")
     
     radarr = RadarrService()
@@ -223,18 +237,25 @@ async def check_radarr_queue():
                 if msg.get('messages'):
                     messages.extend(msg.get('messages'))
             
-            # Check for import failure (no eligible files)
-            has_import_failure = any(
-                'no files found are eligible for import' in msg.lower() or
-                'not eligible for import' in msg.lower() or
-                'has already been imported' in msg.lower()
-                for msg in messages
+            # Also check the trackedDownloadStatus and trackedDownloadState fields
+            # Radarr uses these for "Downloaded - Unable to Import Automatically"
+            tracked_status = item.get('trackedDownloadStatus', '').lower()
+            tracked_state = item.get('trackedDownloadState', '').lower()
+            
+            # "importpending" state with "warning" status = Unable to Import Automatically
+            has_import_pending_warning = (
+                tracked_state == 'importpending' and 
+                tracked_status == 'warning'
             )
+            
+            # Check for import failure using shared detection
+            has_import_failure = _is_import_failure(messages) or has_import_pending_warning
             
             if has_import_failure and item_id:
                 alert_key = f"radarr_{item_id}_import_fix"
                 if alert_key not in alerted_items:
-                    logger.warning(f"🔧 Found import failure in Radarr: {title}")
+                    reason_msg = messages[0] if messages else 'Unable to import automatically'
+                    logger.warning(f"🔧 Found import failure in Radarr: {title} — {reason_msg}")
                     
                     try:
                         # Remove from queue with blocklist and trigger new search
@@ -263,11 +284,11 @@ async def check_radarr_queue():
                             'series_title': movie_title,
                             'episode_title': title,
                             'action': 'Blocklist & Re-search',
-                            'reason': 'No eligible files for import'
+                            'reason': f'Import failure — {reason_msg}'
                         })
                         
                         alerted_items.add(alert_key)
-                        logger.info(f"✅ Auto-fixed import failure for: {title}")
+                        logger.info(f"✅ Auto-fixed import failure for: {movie_title}")
                         continue
                         
                     except Exception as e:
@@ -408,12 +429,12 @@ async def check_and_alert_stuck_downloads():
         
         # Send auto-fix success email if we fixed anything
         if all_fixed:
-            logger.info(f"✅ Auto-fixed {len(all_fixed)} TBA title issues!")
+            logger.info(f"✅ Auto-fixed {len(all_fixed)} stuck import issues!")
             
             html = generate_auto_fix_email(all_fixed)
             await email_service.send_email(
                 to_email=admin_email,
-                subject=f"✅ Auto-Fixed {len(all_fixed)} TBA Title Issue{'s' if len(all_fixed) != 1 else ''}",
+                subject=f"✅ Auto-Fixed {len(all_fixed)} Stuck Import{'s' if len(all_fixed) != 1 else ''}",
                 html_body=html
             )
             logger.info(f"✅ Auto-fix notification sent to {admin_email}")
@@ -438,7 +459,7 @@ async def check_and_alert_stuck_downloads():
 
 
 def generate_auto_fix_email(fixed_items):
-    """Generate HTML email for auto-fixed TBA issues"""
+    """Generate HTML email for auto-fixed stuck imports"""
     
     items_html = []
     for item in fixed_items:
@@ -448,10 +469,10 @@ def generate_auto_fix_email(fixed_items):
                     [{item['service']}] {item['series_title']}
                 </div>
                 <div style="font-size: 13px; color: #666; margin-bottom: 5px;">
-                    <strong>Episode:</strong> {item['episode_title']}
+                    <strong>Release:</strong> {item['episode_title']}
                 </div>
                 <div style="font-size: 13px; color: #4caf50;">
-                    ✅ <strong>Action Taken:</strong> {item['action']} - {item['reason']}
+                    ✅ <strong>Action Taken:</strong> {item['action']} — {item['reason']}
                 </div>
             </div>
         ''')
@@ -475,21 +496,21 @@ def generate_auto_fix_email(fixed_items):
         <div class="container">
             <div class="header">
                 <div class="success-icon">✅</div>
-                <h1>TBA Titles Auto-Fixed</h1>
-                <p>{len(fixed_items)} episode{'s' if len(fixed_items) != 1 else ''} automatically fixed</p>
+                <h1>Stuck Imports Auto-Fixed</h1>
+                <p>{len(fixed_items)} item{'s' if len(fixed_items) != 1 else ''} automatically remediated</p>
             </div>
             
             <div class="content">
-                <p>The following downloads were stuck due to <strong>TBA (To Be Announced)</strong> episode titles. I automatically triggered a <strong>Series Refresh & Scan</strong> in Sonarr to pull updated metadata from TVDB, which should allow the imports to complete:</p>
+                <p>The following downloads were stuck due to import failures. BingeAlert automatically <strong>removed the stuck item, blocklisted the release, and triggered a new search</strong> for a different version:</p>
                 
                 {''.join(items_html)}
                 
                 <p style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; font-size: 14px; color: #666;">
                     <strong>What happened:</strong><br>
-                    • Sonarr detected episodes with TBA titles blocking import<br>
-                    • Portal triggered <code>RefreshSeries</code> command to update metadata<br>
-                    • Portal triggered <code>RescanSeries</code> command to retry import<br>
-                    • Episodes should now import successfully ✅
+                    • Detected stuck imports that couldn't be processed automatically<br>
+                    • Removed the problematic download from the queue<br>
+                    • Blocklisted the release so it won't be grabbed again<br>
+                    • Triggered a new search for a different release ✅
                 </p>
             </div>
             
