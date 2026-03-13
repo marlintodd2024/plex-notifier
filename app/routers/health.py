@@ -23,6 +23,7 @@ async def health_check(db: Session = Depends(get_db)):
             "services": {
                 "jellyseerr_configured": bool(settings.jellyseerr_url and settings.jellyseerr_api_key),
                 "sonarr_configured": bool(settings.sonarr_url and settings.sonarr_api_key),
+                "sonarr_anime_configured": bool(settings.sonarr_anime_url and settings.sonarr_anime_api_key),
                 "radarr_configured": bool(settings.radarr_url and settings.radarr_api_key),
                 "smtp_configured": bool(settings.smtp_host),
             }

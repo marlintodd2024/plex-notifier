@@ -8,9 +8,15 @@ logger = logging.getLogger(__name__)
 
 
 class SonarrService:
-    def __init__(self):
-        self.base_url = settings.sonarr_url.rstrip('/')
-        self.api_key = settings.sonarr_api_key
+    def __init__(self, base_url: str = None, api_key: str = None, instance_name: str = "Sonarr"):
+        """Initialize SonarrService. 
+        
+        If base_url/api_key not provided, uses default from settings.
+        Use instance_name for logging (e.g., 'Sonarr', 'Sonarr Anime').
+        """
+        self.base_url = (base_url or settings.sonarr_url).rstrip('/')
+        self.api_key = api_key or settings.sonarr_api_key
+        self.instance_name = instance_name
         self.headers = {
             "X-Api-Key": self.api_key,
             "Content-Type": "application/json"
@@ -38,7 +44,7 @@ class SonarrService:
             series = await self._get(f"/series/{series_id}")
             return series
         except Exception as e:
-            logger.error(f"Failed to fetch series {series_id} from Sonarr: {e}")
+            logger.error(f"Failed to fetch series {series_id} from {self.instance_name}: {e}")
             return None
     
     async def get_episode(self, episode_id: int) -> Optional[Dict]:
@@ -47,7 +53,7 @@ class SonarrService:
             episode = await self._get(f"/episode/{episode_id}")
             return episode
         except Exception as e:
-            logger.error(f"Failed to fetch episode {episode_id} from Sonarr: {e}")
+            logger.error(f"Failed to fetch episode {episode_id} from {self.instance_name}: {e}")
             return None
     
     async def get_queue(self) -> list:
@@ -56,7 +62,7 @@ class SonarrService:
             queue_data = await self._get("/queue")
             return queue_data.get("records", [])
         except Exception as e:
-            logger.error(f"Failed to fetch Sonarr queue: {e}")
+            logger.error(f"Failed to fetch {self.instance_name} queue: {e}")
             return []
     
     async def get_series_episodes_in_queue(self, series_id: int) -> list:
@@ -86,7 +92,7 @@ class SonarrService:
             logger.error(f"Failed to get queue for series {series_id}: {e}")
             return []
         except Exception as e:
-            logger.error(f"Failed to fetch episode {episode_id} from Sonarr: {e}")
+            logger.error(f"Failed to fetch episode {episode_id} from {self.instance_name}: {e}")
             return None
     
     async def get_series_by_tmdb(self, tmdb_id: int) -> Optional[Dict]:
@@ -124,7 +130,7 @@ class SonarrService:
             calendar = await self._get(f"/calendar?start={start_date}&end={end_date}")
             return calendar
         except Exception as e:
-            logger.error(f"Failed to fetch Sonarr calendar: {e}")
+            logger.error(f"Failed to fetch {self.instance_name} calendar: {e}")
             return None
     
     async def get_all_series(self) -> Optional[list]:
@@ -133,7 +139,7 @@ class SonarrService:
             series_list = await self._get("/series")
             return series_list
         except Exception as e:
-            logger.error(f"Failed to fetch all series from Sonarr: {e}")
+            logger.error(f"Failed to fetch all series from {self.instance_name}: {e}")
             return None
     
     async def get_quality_profiles(self) -> list:
@@ -142,7 +148,7 @@ class SonarrService:
             profiles = await self._get("/qualityProfile")
             return profiles
         except Exception as e:
-            logger.error(f"Failed to fetch quality profiles from Sonarr: {e}")
+            logger.error(f"Failed to fetch quality profiles from {self.instance_name}: {e}")
             return []
     
     async def _delete(self, endpoint: str, params: dict = None) -> bool:
@@ -193,3 +199,20 @@ class SonarrService:
         except Exception as e:
             logger.error(f"Failed to blacklist and re-search series TMDB {tmdb_id}: {e}")
             return {"success": False, "message": f"Error: {str(e)}"}
+
+
+def get_all_sonarr_instances() -> list:
+    """Return a list of all configured SonarrService instances.
+    
+    Always includes the primary Sonarr. Includes Sonarr Anime if configured.
+    """
+    instances = [SonarrService()]  # Primary
+    
+    if settings.sonarr_anime_url and settings.sonarr_anime_api_key:
+        instances.append(SonarrService(
+            base_url=settings.sonarr_anime_url,
+            api_key=settings.sonarr_anime_api_key,
+            instance_name="Sonarr Anime"
+        ))
+    
+    return instances

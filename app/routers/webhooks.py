@@ -141,6 +141,9 @@ async def sonarr_webhook(
                 for shared in shared_requests:
                     users_to_notify.append(shared.user)
                 
+                # Filter out inactive users
+                users_to_notify = [u for u in users_to_notify if not hasattr(u, 'is_active') or u.is_active]
+                
                 # Track episode ONCE per request (not per user)
                 episode_tracking = db.query(EpisodeTracking).filter(
                     EpisodeTracking.request_id == request.id,
@@ -388,6 +391,9 @@ async def radarr_webhook(
             ).all()
             for shared in shared_requests:
                 users_to_notify.append(shared.user)
+            
+            # Filter out inactive users
+            users_to_notify = [u for u in users_to_notify if not hasattr(u, 'is_active') or u.is_active]
             
             logger.info(f"Notifying {len(users_to_notify)} user(s) for movie: {webhook.movie.title}")
             
@@ -977,9 +983,13 @@ async def _auto_fix_issue(issue_id: int):
                 radarr = RadarrService()
                 result = await radarr.blacklist_and_research_movie(issue.tmdb_id)
             elif issue.media_type == "tv":
-                from app.services.sonarr_service import SonarrService
-                sonarr_svc = SonarrService()
-                result = await sonarr_svc.blacklist_and_research_series(issue.tmdb_id)
+                from app.services.sonarr_service import SonarrService, get_all_sonarr_instances
+                result = {"success": False, "message": "Series not found in any Sonarr instance"}
+                for sonarr_svc in get_all_sonarr_instances():
+                    r = await sonarr_svc.blacklist_and_research_series(issue.tmdb_id)
+                    if r["success"]:
+                        result = r
+                        break
             else:
                 result = {"success": False, "message": f"Unknown media type: {issue.media_type}"}
             

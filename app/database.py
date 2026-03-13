@@ -37,6 +37,8 @@ class User(Base):
     email = Column(String, nullable=False)
     username = Column(String, nullable=False)
     plex_id = Column(Integer, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    deactivated_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

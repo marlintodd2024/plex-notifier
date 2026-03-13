@@ -37,11 +37,14 @@ def _is_import_failure(messages):
     return False
 
 
-async def check_sonarr_queue():
+async def check_sonarr_queue(sonarr=None):
     """Check Sonarr queue for stuck downloads and auto-fix TBA titles"""
-    logger.info("Checking Sonarr queue for stuck downloads...")
+    if sonarr is None:
+        sonarr = SonarrService()
     
-    sonarr = SonarrService()
+    instance = getattr(sonarr, 'instance_name', 'Sonarr')
+    logger.info(f"Checking {instance} queue for stuck downloads...")
+    
     stuck_items = []
     fixed_items = []
     
@@ -417,8 +420,15 @@ async def check_and_alert_stuck_downloads():
     logger.info("=" * 60)
     
     try:
-        # Check both services (now returns stuck_items and fixed_items)
-        sonarr_stuck, sonarr_fixed = await check_sonarr_queue()
+        # Check all Sonarr instances (primary + anime if configured)
+        from app.services.sonarr_service import get_all_sonarr_instances
+        sonarr_stuck = []
+        sonarr_fixed = []
+        for sonarr_instance in get_all_sonarr_instances():
+            s, f = await check_sonarr_queue(sonarr_instance)
+            sonarr_stuck.extend(s)
+            sonarr_fixed.extend(f)
+        
         radarr_stuck, radarr_fixed = await check_radarr_queue()
         
         all_stuck = sonarr_stuck + radarr_stuck

@@ -169,12 +169,32 @@ class EmailService:
         if not ready_notifications:
             return
         
+        # Filter out notifications for inactive users
+        active_notifications = []
+        skipped_inactive = 0
+        for n in ready_notifications:
+            if hasattr(n.user, 'is_active') and not n.user.is_active:
+                # Mark as sent to clear the queue (don't keep retrying for inactive users)
+                n.sent = True
+                n.error_message = "Skipped — user deactivated"
+                skipped_inactive += 1
+            else:
+                active_notifications.append(n)
+        
+        if skipped_inactive:
+            db.commit()
+            logger.info(f"Skipped {skipped_inactive} notification(s) for inactive users")
+        
+        ready_notifications = active_notifications
+        if not ready_notifications:
+            return
+        
         logger.info(f"Found {len(ready_notifications)} notifications ready to process")
         
         # Smart batching: Group TV episodes by user + series
         # Check Sonarr queue to see if more episodes are coming
-        from app.services.sonarr_service import SonarrService
-        sonarr = SonarrService()
+        from app.services.sonarr_service import SonarrService, get_all_sonarr_instances
+        sonarr_instances = get_all_sonarr_instances()
         
         # Separate TV episodes from movies and other notification types
         tv_notifications = [n for n in ready_notifications if n.notification_type == "episode" and n.series_id]
@@ -188,7 +208,13 @@ class EmailService:
                 continue
             
             # Check if more episodes are in Sonarr queue
-            queue_episodes = await sonarr.get_series_episodes_in_queue(notif.series_id)
+            # Check if more episodes are in any Sonarr instance's queue
+            queue_episodes = []
+            for sonarr in sonarr_instances:
+                qe = await sonarr.get_series_episodes_in_queue(notif.series_id)
+                if qe:
+                    queue_episodes.extend(qe)
+                    break  # Found in this instance, no need to check others
             
             # ALSO check if there are more pending notifications for this series coming soon
             # (episodes that downloaded but haven't reached their send_after time yet)
@@ -921,9 +947,9 @@ class EmailService:
         """Send a maintenance email to all users. Returns dict with sent/failed counts."""
         from app.database import User
         
-        users = db.query(User).all()
+        users = db.query(User).filter(User.is_active == True).all()
         if not users:
-            logger.warning("No users found to send maintenance email")
+            logger.warning("No active users found to send maintenance email")
             return {"sent": 0, "failed": 0, "total": 0}
         
         # Format times for display

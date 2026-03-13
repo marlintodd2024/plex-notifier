@@ -28,10 +28,22 @@ class JellyseerrSyncService:
             return response.json()
     
     async def get_users(self) -> List[dict]:
-        """Fetch all users from Jellyseerr"""
+        """Fetch all users from Jellyseerr (paginated to handle large installs)"""
+        all_users = []
         try:
-            data = await self._get("/user?take=50")
-            return data.get("results", [])
+            page_size = 50
+            skip = 0
+            while True:
+                data = await self._get(f"/user?take={page_size}&skip={skip}")
+                results = data.get("results", [])
+                all_users.extend(results)
+                
+                # If we got fewer than requested, we've reached the end
+                if len(results) < page_size:
+                    break
+                skip += page_size
+            
+            return all_users
         except Exception as e:
             logger.error(f"Failed to fetch users from Jellyseerr: {e}")
             return []
@@ -57,14 +69,29 @@ class JellyseerrSyncService:
             return {}
     
     async def sync_users(self):
-        """Sync users from Jellyseerr to local database"""
+        """Sync users from Jellyseerr to local database.
+        
+        - Creates new users found in Jellyseerr
+        - Updates existing users' info
+        - Reactivates users who were previously deactivated but are back in Jellyseerr
+        - Soft-deactivates users no longer present in Jellyseerr
+        """
         logger.info("Starting user sync from Jellyseerr...")
         users_data = await self.get_users()
         
+        if not users_data:
+            logger.warning("No users returned from Jellyseerr — skipping sync to avoid false deactivations")
+            return
+        
         db = next(get_db())
         synced_count = 0
+        deactivated_count = 0
+        reactivated_count = 0
         
         try:
+            # Collect all jellyseerr IDs from the API response
+            active_jellyseerr_ids = set()
+            
             for user_data in users_data:
                 # Skip users without email
                 if not user_data.get("email"):
@@ -72,6 +99,8 @@ class JellyseerrSyncService:
                     continue
                 
                 jellyseerr_id = user_data.get("id")
+                active_jellyseerr_ids.add(jellyseerr_id)
+                
                 existing_user = db.query(User).filter(User.jellyseerr_id == jellyseerr_id).first()
                 
                 # Use username, displayName, plexUsername, or email as fallback
@@ -85,22 +114,51 @@ class JellyseerrSyncService:
                     existing_user.email = user_data.get("email")
                     existing_user.username = username
                     existing_user.plex_id = user_data.get("plexId")
-                    logger.info(f"Updated user: {username} ({user_data.get('email')})")
+                    
+                    # Reactivate if they were previously deactivated
+                    if not existing_user.is_active:
+                        existing_user.is_active = True
+                        existing_user.deactivated_at = None
+                        reactivated_count += 1
+                        logger.info(f"Reactivated user: {username} ({user_data.get('email')}) — back in Jellyseerr")
+                    else:
+                        logger.info(f"Updated user: {username} ({user_data.get('email')})")
                 else:
                     # Create new user
                     new_user = User(
                         jellyseerr_id=jellyseerr_id,
                         email=user_data.get("email"),
                         username=username,
-                        plex_id=user_data.get("plexId")
+                        plex_id=user_data.get("plexId"),
+                        is_active=True
                     )
                     db.add(new_user)
                     logger.info(f"Created new user: {username} ({user_data.get('email')})")
                 
                 synced_count += 1
             
+            # Deactivate users no longer in Jellyseerr
+            from datetime import datetime
+            local_users = db.query(User).filter(User.is_active == True).all()
+            for local_user in local_users:
+                if local_user.jellyseerr_id not in active_jellyseerr_ids:
+                    local_user.is_active = False
+                    local_user.deactivated_at = datetime.utcnow()
+                    deactivated_count += 1
+                    logger.warning(
+                        f"Deactivated user: {local_user.username} ({local_user.email}) "
+                        f"— no longer in Jellyseerr (ID: {local_user.jellyseerr_id})"
+                    )
+            
             db.commit()
-            logger.info(f"Synced {synced_count} users from Jellyseerr")
+            
+            summary = f"Synced {synced_count} users from Jellyseerr"
+            if deactivated_count:
+                summary += f", deactivated {deactivated_count}"
+            if reactivated_count:
+                summary += f", reactivated {reactivated_count}"
+            logger.info(summary)
+            
         except Exception as e:
             db.rollback()
             logger.error(f"Error syncing users: {e}")
@@ -117,8 +175,8 @@ class JellyseerrSyncService:
         
         try:
             # Import SonarrService for episode checking
-            from app.services.sonarr_service import SonarrService
-            sonarr = SonarrService()
+            from app.services.sonarr_service import SonarrService, get_all_sonarr_instances
+            sonarr_instances = get_all_sonarr_instances()
             
             for request_data in requests_data:
                 jellyseerr_request_id = request_data.get("id")
@@ -183,14 +241,15 @@ class JellyseerrSyncService:
                     logger.info(f"Created new request: {title} ({media_type})")
                     request_to_check = new_request
                 
-                # For TV shows, check Sonarr for existing episodes
+                # For TV shows, check all Sonarr instances for existing episodes
                 if media_type == "tv":
-                    await self._import_existing_episodes(
-                        db, 
-                        request_to_check, 
-                        tmdb_id,
-                        sonarr
-                    )
+                    for sonarr in sonarr_instances:
+                        await self._import_existing_episodes(
+                            db, 
+                            request_to_check, 
+                            tmdb_id,
+                            sonarr
+                        )
                 
                 synced_count += 1
             

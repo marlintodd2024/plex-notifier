@@ -24,9 +24,13 @@ logger = logging.getLogger(__name__)
 class QualityReleaseMonitor:
     def __init__(self):
         self.email_service = EmailService()
-        self.sonarr = SonarrService()
+        self.sonarr = SonarrService()  # Primary instance for backward compat
         self.radarr = RadarrService()
         self.tmdb = TMDBService(settings.jellyseerr_url, settings.jellyseerr_api_key)
+        
+        # All Sonarr instances (primary + anime if configured)
+        from app.services.sonarr_service import get_all_sonarr_instances
+        self.sonarr_instances = get_all_sonarr_instances()
     
     async def run(self):
         """Run the quality/release monitoring check"""
@@ -64,14 +68,28 @@ class QualityReleaseMonitor:
         """Check TV show for release status and quality"""
         # If we don't have a series_id, try to find it in Sonarr by TMDB ID
         series = None
+        matched_sonarr = self.sonarr  # Default to primary
         
-        if hasattr(request, 'series_id') and request.series_id:
-            series = await self.sonarr.get_series(request.series_id)
-        else:
-            # Look up series by TMDB ID in Sonarr
-            all_series = await self.sonarr.get_all_series()
-            if all_series:
-                series = next((s for s in all_series if s.get('tvdbId') == request.tmdb_id), None)
+        # Search across all Sonarr instances
+        for sonarr_inst in self.sonarr_instances:
+            if hasattr(request, 'series_id') and request.series_id:
+                try:
+                    s = await sonarr_inst.get_series(request.series_id)
+                    if s:
+                        series = s
+                        matched_sonarr = sonarr_inst
+                        break
+                except Exception:
+                    continue
+            else:
+                # Look up series by TMDB ID
+                all_series = await sonarr_inst.get_all_series()
+                if all_series:
+                    s = next((s for s in all_series if s.get('tvdbId') == request.tmdb_id), None)
+                    if s:
+                        series = s
+                        matched_sonarr = sonarr_inst
+                        break
         
         if not series:
             logger.debug(f"Series not yet in Sonarr for request {request.id} ({request.title})")
@@ -90,7 +108,7 @@ class QualityReleaseMonitor:
         
         # Check if waiting for better quality
         # Get all episodes for this series
-        episodes = await self.sonarr.get_episodes_by_series(series.get('id'))
+        episodes = await matched_sonarr.get_episodes_by_series(series.get('id'))
         if not episodes:
             return
         
@@ -108,17 +126,17 @@ class QualityReleaseMonitor:
                     # Check if series is currently in the download queue (downloading, stuck, etc.)
                     # If it's in the queue, don't send quality notification - the stuck monitor handles errors
                     try:
-                        queue = await self.sonarr._get("/queue")
+                        queue = await matched_sonarr._get("/queue")
                         if queue and 'records' in queue:
                             in_queue = any(
                                 item.get('seriesId') == series.get('id')
                                 for item in queue['records']
                             )
                             if in_queue:
-                                logger.info(f"Series '{request.title}' is in Sonarr download queue - skipping quality notification")
+                                logger.info(f"Series '{request.title}' is in {matched_sonarr.instance_name} download queue - skipping quality notification")
                                 return
                     except Exception as e:
-                        logger.warning(f"Failed to check Sonarr queue for '{request.title}': {e}")
+                        logger.warning(f"Failed to check {matched_sonarr.instance_name} queue for '{request.title}': {e}")
                     
                     # Check if we already notified about quality waiting
                     if not self._already_notified_quality_wait(request, db):
@@ -135,7 +153,7 @@ class QualityReleaseMonitor:
                             else:
                                 # Look up profile name from Sonarr API
                                 try:
-                                    profiles = await self.sonarr.get_quality_profiles()
+                                    profiles = await matched_sonarr.get_quality_profiles()
                                     profile = next((p for p in profiles if p.get('id') == quality_profile_id), None)
                                     if profile:
                                         quality_profile_name = profile.get('name', f"Profile ID {quality_profile_id}")

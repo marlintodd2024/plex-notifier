@@ -22,7 +22,8 @@ async def reconcile_tv_episodes(db: Session):
     """Check for TV episodes that are downloaded but not notified"""
     logger.info("Starting TV episode reconciliation...")
     
-    sonarr = SonarrService()
+    from app.services.sonarr_service import get_all_sonarr_instances
+    sonarr_instances = get_all_sonarr_instances()
     plex = PlexService()
     email_service = EmailService()
     tmdb_service = TMDBService(settings.jellyseerr_url, settings.jellyseerr_api_key)
@@ -69,13 +70,19 @@ async def reconcile_tv_episodes(db: Session):
             logger.info(f"🎯 Orphaned: {request.title} S{tracking.season_number:02d}E{tracking.episode_number:02d} (notified={tracking.notified})")
 
             
-            # Get series info from Sonarr to get the title
-            series_list = await sonarr._get("/series")
+            # Get series info from Sonarr (check all instances)
             series = None
-            for s in series_list:
-                if s.get("id") == tracking.series_id:
-                    series = s
-                    break
+            for sonarr in sonarr_instances:
+                try:
+                    series_list = await sonarr._get("/series")
+                    for s in series_list:
+                        if s.get("id") == tracking.series_id:
+                            series = s
+                            break
+                    if series:
+                        break
+                except Exception:
+                    continue
             
             if not series:
                 logger.warning(f"Series {tracking.series_id} not found in Sonarr - skipping")
@@ -145,13 +152,21 @@ async def reconcile_tv_episodes(db: Session):
     
     for request in tv_requests:
         try:
-            # Get series info from Sonarr
-            series_list = await sonarr._get("/series")
+            # Get series info from Sonarr (check all instances)
             series = None
-            for s in series_list:
-                if s.get("tvdbId") == request.tmdb_id or s.get("title", "").lower() == request.title.lower():
-                    series = s
-                    break
+            matched_sonarr = sonarr_instances[0]
+            for sonarr in sonarr_instances:
+                try:
+                    series_list = await sonarr._get("/series")
+                    for s in series_list:
+                        if s.get("tvdbId") == request.tmdb_id or s.get("title", "").lower() == request.title.lower():
+                            series = s
+                            matched_sonarr = sonarr
+                            break
+                    if series:
+                        break
+                except Exception:
+                    continue
             
             if not series:
                 continue
@@ -159,7 +174,7 @@ async def reconcile_tv_episodes(db: Session):
             series_id = series["id"]
             
             # Get all episodes for this series
-            episodes = await sonarr._get(f"/episode?seriesId={series_id}")
+            episodes = await matched_sonarr._get(f"/episode?seriesId={series_id}")
             
             for episode in episodes:
                 # Skip if not downloaded (hasFile = False means not downloaded)
@@ -396,7 +411,8 @@ async def reconcile_issues(db: Session):
     logger.info("Starting issue reconciliation...")
     
     radarr = RadarrService()
-    sonarr = SonarrService()
+    from app.services.sonarr_service import get_all_sonarr_instances
+    sonarr_instances = get_all_sonarr_instances()
     email_service = EmailService()
     tmdb_service = TMDBService(settings.jellyseerr_url, settings.jellyseerr_api_key)
     
@@ -440,18 +456,22 @@ async def reconcile_issues(db: Session):
                         has_file = True
                         break
             else:
-                # For TV, check if any recent episode file exists
-                # This is a simpler check — if the series has files, the re-download likely worked
-                series_list = await sonarr._get("/series")
-                for s in series_list:
-                    if s.get("tvdbId") == issue.tmdb_id or s.get("title", "").lower() == issue.title.lower():
-                        # Check episode files
-                        episodes = await sonarr._get(f"/episode?seriesId={s['id']}")
-                        for ep in episodes:
-                            if ep.get("hasFile"):
-                                has_file = True
+                # For TV, check if any recent episode file exists across all Sonarr instances
+                for sonarr in sonarr_instances:
+                    try:
+                        series_list = await sonarr._get("/series")
+                        for s in series_list:
+                            if s.get("tvdbId") == issue.tmdb_id or s.get("title", "").lower() == issue.title.lower():
+                                episodes = await sonarr._get(f"/episode?seriesId={s['id']}")
+                                for ep in episodes:
+                                    if ep.get("hasFile"):
+                                        has_file = True
+                                        break
                                 break
-                        break
+                        if has_file:
+                            break
+                    except Exception:
+                        continue
             
             if has_file:
                 # Content is available — resolve the issue

@@ -53,8 +53,13 @@ async def process_notifications(db: Session = Depends(get_db)):
 async def get_stats(db: Session = Depends(get_db)):
     """Get system statistics"""
     try:
+        total_users = db.query(func.count(User.id)).scalar()
+        active_users = db.query(func.count(User.id)).filter(User.is_active == True).scalar()
+        
         stats = {
-            "users": db.query(func.count(User.id)).scalar(),
+            "users": total_users,
+            "active_users": active_users,
+            "inactive_users": total_users - active_users,
             "requests": {
                 "total": db.query(func.count(MediaRequest.id)).scalar(),
                 "movies": db.query(func.count(MediaRequest.id)).filter(MediaRequest.media_type == "movie").scalar(),
@@ -85,10 +90,41 @@ async def list_users(skip: int = 0, limit: int = 50, db: Session = Depends(get_d
                 "jellyseerr_id": u.jellyseerr_id,
                 "email": u.email,
                 "username": u.username,
+                "is_active": u.is_active if hasattr(u, 'is_active') else True,
+                "deactivated_at": u.deactivated_at.isoformat() + 'Z' if hasattr(u, 'deactivated_at') and u.deactivated_at else None,
                 "created_at": u.created_at.isoformat() + 'Z' if u.created_at else None
             }
             for u in users
         ]
+    }
+
+
+@router.post("/users/{user_id}/toggle-active")
+async def toggle_user_active(user_id: int, db: Session = Depends(get_db)):
+    """Toggle a user's active status (soft delete / reactivate)"""
+    from datetime import datetime
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user.is_active:
+        user.is_active = False
+        user.deactivated_at = datetime.utcnow()
+        action = "deactivated"
+        logger.info(f"Manually deactivated user: {user.username} ({user.email})")
+    else:
+        user.is_active = True
+        user.deactivated_at = None
+        action = "reactivated"
+        logger.info(f"Manually reactivated user: {user.username} ({user.email})")
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"User {user.username} {action}",
+        "is_active": user.is_active
     }
 
 
@@ -147,24 +183,27 @@ async def list_notifications(
 async def get_upcoming_episodes(days: int = 30, db: Session = Depends(get_db)):
     """Get upcoming episodes from Sonarr calendar that match user requests"""
     try:
-        from app.services.sonarr_service import SonarrService
+        from app.services.sonarr_service import SonarrService, get_all_sonarr_instances
         from app.database import EpisodeTracking
         from datetime import datetime, timedelta
         
-        sonarr = SonarrService()
-        
-        # Get calendar for next N days
+        # Get calendar for next N days from all Sonarr instances
         start_date = datetime.utcnow().strftime('%Y-%m-%d')
         end_date = (datetime.utcnow() + timedelta(days=days)).strftime('%Y-%m-%d')
         
-        logger.info(f"Fetching Sonarr calendar from {start_date} to {end_date}")
-        calendar_episodes = await sonarr.get_calendar(start_date, end_date)
+        calendar_episodes = []
+        for sonarr in get_all_sonarr_instances():
+            logger.info(f"Fetching {sonarr.instance_name} calendar from {start_date} to {end_date}")
+            episodes = await sonarr.get_calendar(start_date, end_date)
+            if episodes:
+                calendar_episodes.extend(episodes)
+                logger.info(f"Found {len(episodes)} episodes in {sonarr.instance_name} calendar")
         
         if not calendar_episodes:
-            logger.warning("No episodes returned from Sonarr calendar")
+            logger.warning("No episodes returned from any Sonarr instance")
             return {"upcoming": [], "count": 0}
         
-        logger.info(f"Found {len(calendar_episodes)} episodes in Sonarr calendar")
+        logger.info(f"Found {len(calendar_episodes)} total episodes across all Sonarr instances")
         
         # Get all TV show requests with their users
         tv_requests = db.query(MediaRequest).filter(
@@ -299,18 +338,19 @@ async def import_existing_episodes(request_id: int, db: Session = Depends(get_db
             raise HTTPException(status_code=400, detail="Request is not a TV show")
         
         # Import existing episodes
-        from app.services.sonarr_service import SonarrService
+        from app.services.sonarr_service import SonarrService, get_all_sonarr_instances
         from app.services.jellyseerr_sync import JellyseerrSyncService
         
-        sonarr = SonarrService()
         sync_service = JellyseerrSyncService()
         
-        await sync_service._import_existing_episodes(
-            db, 
-            request, 
-            request.tmdb_id, 
-            sonarr
-        )
+        # Try importing from all Sonarr instances
+        for sonarr in get_all_sonarr_instances():
+            await sync_service._import_existing_episodes(
+                db, 
+                request, 
+                request.tmdb_id, 
+                sonarr
+            )
         
         db.commit()
         
@@ -337,10 +377,10 @@ async def import_existing_episodes(request_id: int, db: Session = Depends(get_db
 async def import_all_existing_episodes(db: Session = Depends(get_db)):
     """Import existing episodes from Sonarr for ALL TV show requests"""
     try:
-        from app.services.sonarr_service import SonarrService
+        from app.services.sonarr_service import SonarrService, get_all_sonarr_instances
         from app.services.jellyseerr_sync import JellyseerrSyncService
         
-        sonarr = SonarrService()
+        sonarr_instances = get_all_sonarr_instances()
         sync_service = JellyseerrSyncService()
         
         # Get all TV show requests
@@ -349,12 +389,13 @@ async def import_all_existing_episodes(db: Session = Depends(get_db)):
         imported_count = 0
         for request in tv_requests:
             try:
-                await sync_service._import_existing_episodes(
-                    db,
-                    request,
-                    request.tmdb_id,
-                    sonarr
-                )
+                for sonarr in sonarr_instances:
+                    await sync_service._import_existing_episodes(
+                        db,
+                        request,
+                        request.tmdb_id,
+                        sonarr
+                    )
                 imported_count += 1
             except Exception as e:
                 logger.error(f"Failed to import episodes for request {request.id}: {e}")
@@ -459,7 +500,7 @@ async def notify_episode_now(
     """Manually trigger notification for a specific episode"""
     try:
         from app.services.email_service import EmailService
-        from app.services.sonarr_service import SonarrService
+        from app.services.sonarr_service import SonarrService, get_all_sonarr_instances
         from app.database import EpisodeTracking
         
         # Get the request
@@ -467,14 +508,20 @@ async def notify_episode_now(
         if not request:
             raise HTTPException(status_code=404, detail="Request not found")
         
-        # Get series details from Sonarr
-        sonarr = SonarrService()
-        series = await sonarr.get_series(series_id)
-        if not series:
-            raise HTTPException(status_code=404, detail="Series not found in Sonarr")
+        # Get series details from Sonarr (try all instances)
+        series = None
+        matched_sonarr = None
+        for sonarr in get_all_sonarr_instances():
+            series = await sonarr.get_series(series_id)
+            if series:
+                matched_sonarr = sonarr
+                break
+        
+        if not series or not matched_sonarr:
+            raise HTTPException(status_code=404, detail="Series not found in any Sonarr instance")
         
         # Get episode details
-        all_episodes = await sonarr.get_episodes_by_series(series_id)
+        all_episodes = await matched_sonarr.get_episodes_by_series(series_id)
         episode = None
         for ep in all_episodes or []:
             if ep.get("seasonNumber") == season_number and ep.get("episodeNumber") == episode_number:
@@ -992,6 +1039,10 @@ async def get_config():
                 "url": os.getenv("SONARR_URL", ""),
                 "api_key": mask_secret(os.getenv("SONARR_API_KEY", ""))
             },
+            "sonarr_anime": {
+                "url": os.getenv("SONARR_ANIME_URL", ""),
+                "api_key": mask_secret(os.getenv("SONARR_ANIME_API_KEY", ""))
+            },
             "radarr": {
                 "url": os.getenv("RADARR_URL", ""),
                 "api_key": mask_secret(os.getenv("RADARR_API_KEY", ""))
@@ -1009,6 +1060,11 @@ async def get_config():
                 "mode": os.getenv("ISSUE_AUTOFIX_MODE", "manual")
             },
             "admin_email": os.getenv("ADMIN_EMAIL", ""),
+            "seerr_anime": {
+                "server_id": os.getenv("SEERR_ANIME_SERVER_ID", ""),
+                "profile_id": os.getenv("SEERR_ANIME_PROFILE_ID", ""),
+                "root_folder": os.getenv("SEERR_ANIME_ROOT_FOLDER", ""),
+            },
             "security": {
                 "webhook_allowed_ips": os.getenv("WEBHOOK_ALLOWED_IPS", ""),
                 "environment": os.getenv("ENVIRONMENT", "production"),
@@ -1170,6 +1226,26 @@ async def update_config(config: dict):
             env_dict['ADMIN_EMAIL'] = config['admin_email']
             updates.append('ADMIN_EMAIL')
         
+        # Seerr Anime Overrides
+        if 'seerr_anime' in config:
+            sa = config['seerr_anime']
+            if sa.get('server_id') not in (None, '', '0'):
+                env_dict['SEERR_ANIME_SERVER_ID'] = str(sa['server_id'])
+                updates.append('SEERR_ANIME_SERVER_ID')
+            elif sa.get('server_id') in ('', '0'):
+                env_dict.pop('SEERR_ANIME_SERVER_ID', None)
+                updates.append('SEERR_ANIME_SERVER_ID (cleared)')
+            if sa.get('profile_id') not in (None, '', '0'):
+                env_dict['SEERR_ANIME_PROFILE_ID'] = str(sa['profile_id'])
+                updates.append('SEERR_ANIME_PROFILE_ID')
+            elif sa.get('profile_id') in ('', '0'):
+                env_dict.pop('SEERR_ANIME_PROFILE_ID', None)
+            if sa.get('root_folder'):
+                env_dict['SEERR_ANIME_ROOT_FOLDER'] = sa['root_folder']
+                updates.append('SEERR_ANIME_ROOT_FOLDER')
+            elif sa.get('root_folder') == '':
+                env_dict.pop('SEERR_ANIME_ROOT_FOLDER', None)
+        
         # Jellyseerr
         if 'jellyseerr' in config:
             if config['jellyseerr'].get('url'):
@@ -1187,6 +1263,20 @@ async def update_config(config: dict):
             if config['sonarr'].get('api_key') and not is_masked_value(config['sonarr']['api_key']):
                 env_dict['SONARR_API_KEY'] = config['sonarr']['api_key']
                 updates.append('SONARR_API_KEY')
+        
+        # Sonarr Anime (optional)
+        if 'sonarr_anime' in config:
+            if config['sonarr_anime'].get('url'):
+                env_dict['SONARR_ANIME_URL'] = config['sonarr_anime']['url']
+                updates.append('SONARR_ANIME_URL')
+            elif config['sonarr_anime'].get('url') == '':
+                # Explicitly cleared — remove from env
+                env_dict.pop('SONARR_ANIME_URL', None)
+                env_dict.pop('SONARR_ANIME_API_KEY', None)
+                updates.append('SONARR_ANIME_URL (cleared)')
+            if config['sonarr_anime'].get('api_key') and not is_masked_value(config['sonarr_anime']['api_key']):
+                env_dict['SONARR_ANIME_API_KEY'] = config['sonarr_anime']['api_key']
+                updates.append('SONARR_ANIME_API_KEY')
         
         # Radarr
         if 'radarr' in config:
@@ -1333,11 +1423,15 @@ async def update_config(config: dict):
         with open(env_path, 'w') as f:
             f.writelines(new_lines)
         
+        # Update os.environ so settings reflect immediately without restart
+        for key, value in env_dict.items():
+            os.environ[key] = value
+        
         logger.info(f"Configuration updated: {', '.join(updates)}")
         
         return {
             "success": True,
-            "message": f"Updated {len(updates)} settings. Restart required for changes to take effect.",
+            "message": f"Updated {len(updates)} settings. Some changes may require a restart to take full effect.",
             "updated_fields": updates
         }
         
@@ -1658,9 +1752,13 @@ async def fix_issue(issue_id: int, db: Session = Depends(get_db)):
             radarr = RadarrService()
             result = await radarr.blacklist_and_research_movie(issue.tmdb_id)
         elif issue.media_type == "tv":
-            from app.services.sonarr_service import SonarrService
-            sonarr_svc = SonarrService()
-            result = await sonarr_svc.blacklist_and_research_series(issue.tmdb_id)
+            from app.services.sonarr_service import SonarrService, get_all_sonarr_instances
+            result = {"success": False, "message": "Series not found in any Sonarr instance"}
+            for sonarr_svc in get_all_sonarr_instances():
+                r = await sonarr_svc.blacklist_and_research_series(issue.tmdb_id)
+                if r["success"]:
+                    result = r
+                    break
         else:
             result = {"success": False, "message": "Unknown media type"}
         
@@ -1993,6 +2091,25 @@ async def request_on_behalf(
             media_response.raise_for_status()
             media_data = media_response.json()
             
+            # Auto-detect anime from TMDB data
+            is_anime = False
+            if media_type == 'tv':
+                genres = [g.get('name', '').lower() for g in media_data.get('genres', [])]
+                origin_countries = [c.lower() for c in (media_data.get('origin_country', []) or [])]
+                # Also check keywords if available
+                keywords = [k.get('name', '').lower() for k in media_data.get('keywords', [])]
+                
+                # Anime detection: Animation genre + Japanese origin, or 'anime' keyword
+                has_animation = 'animation' in genres
+                is_japanese = 'jp' in origin_countries
+                has_anime_keyword = 'anime' in keywords
+                
+                is_anime = (has_animation and is_japanese) or has_anime_keyword
+                
+                if is_anime:
+                    title = media_data.get('name') or media_data.get('title') or 'Unknown'
+                    logger.info(f"Auto-detected anime: {title} (genres={genres}, origin={origin_countries})")
+            
             # Create request
             request_payload = {
                 "mediaType": media_type,
@@ -2003,6 +2120,19 @@ async def request_on_behalf(
             if media_type == 'tv':
                 request_payload["seasons"] = "all"
             
+            # Apply anime overrides if detected and configured
+            if is_anime and settings.seerr_anime_server_id:
+                request_payload["serverId"] = settings.seerr_anime_server_id
+                logger.info(f"Routing to anime Sonarr server ID: {settings.seerr_anime_server_id}")
+                
+                if settings.seerr_anime_profile_id:
+                    request_payload["profileId"] = settings.seerr_anime_profile_id
+                    logger.info(f"Using anime quality profile ID: {settings.seerr_anime_profile_id}")
+                
+                if settings.seerr_anime_root_folder:
+                    request_payload["rootFolder"] = settings.seerr_anime_root_folder
+                    logger.info(f"Using anime root folder: {settings.seerr_anime_root_folder}")
+            
             request_response = await client.post(
                 f"{jellyseerr_url}/api/v1/request",
                 headers={"X-Api-Key": api_key},
@@ -2011,12 +2141,15 @@ async def request_on_behalf(
             request_response.raise_for_status()
             request_data = request_response.json()
         
-        logger.info(f"Created request for {media_data.get('title') or media_data.get('name')} on behalf of {user.email}")
+        title = media_data.get('title') or media_data.get('name') or 'Unknown'
+        anime_note = " (routed to anime Sonarr)" if is_anime and settings.seerr_anime_server_id else ""
+        logger.info(f"Created request for {title} on behalf of {user.email}{anime_note}")
         
         return {
             "success": True,
-            "message": f"Request created successfully",
-            "jellyseerr_request_id": request_data.get('id')
+            "message": f"Request created successfully{'  🎌 Routed to anime Sonarr' if is_anime and settings.seerr_anime_server_id else ''}",
+            "jellyseerr_request_id": request_data.get('id'),
+            "is_anime": is_anime
         }
         
     except httpx.HTTPError as e:
@@ -2027,6 +2160,46 @@ async def request_on_behalf(
     except Exception as e:
         logger.error(f"Failed to create request on behalf: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/seerr-sonarr-servers")
+async def get_seerr_sonarr_servers():
+    """Fetch configured Sonarr servers from Jellyseerr/Seerr to discover server IDs and profiles"""
+    try:
+        import httpx
+        from app.config import settings
+        
+        jellyseerr_url = settings.jellyseerr_url.rstrip('/')
+        api_key = settings.jellyseerr_api_key
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{jellyseerr_url}/api/v1/settings/sonarr",
+                headers={"X-Api-Key": api_key}
+            )
+            response.raise_for_status()
+            servers = response.json()
+        
+        # Return simplified server info for the UI
+        result = []
+        for server in servers:
+            result.append({
+                "id": server.get("id"),
+                "name": server.get("name"),
+                "hostname": server.get("hostname"),
+                "port": server.get("port"),
+                "is4k": server.get("is4k", False),
+                "isDefault": server.get("isDefault", False),
+                "activeProfileId": server.get("activeProfileId"),
+                "activeProfileName": server.get("activeProfileName"),
+                "activeDirectory": server.get("activeDirectory"),
+            })
+        
+        return {"success": True, "servers": result}
+        
+    except Exception as e:
+        logger.error(f"Failed to fetch Seerr Sonarr servers: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch servers: {str(e)}")
 
 
 @router.post("/test-email")

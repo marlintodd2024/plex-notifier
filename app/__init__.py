@@ -1,1 +1,0 @@
-# BingeAlert - Main Application Package

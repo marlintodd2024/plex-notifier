@@ -1068,8 +1068,9 @@
 
         <div class="stats-grid">
             <div class="stat-card" style="cursor: pointer;" onclick="switchTab('users', event)">
-                <div class="stat-label">Total Users</div>
+                <div class="stat-label">Active Users</div>
                 <div class="stat-value" id="totalUsers">-</div>
+                <div id="inactiveUsersNote" style="font-size: 0.75em; color: var(--text-secondary); margin-top: 2px; display: none;"></div>
             </div>
             <div class="stat-card" style="cursor: pointer;" onclick="switchTab('requests', event)">
                 <div class="stat-label">Total Requests</div>
@@ -1153,11 +1154,12 @@
                             <th class="sortable" onclick="sortTable('users', 'username')">Username</th>
                             <th class="sortable" onclick="sortTable('users', 'email')">Email</th>
                             <th class="sortable" onclick="sortTable('users', 'jellyseerr_id')">Jellyseerr ID</th>
-                            <th class="sortable" onclick="sortTable('users', 'created_at')">Created At</th>
+                            <th class="sortable" onclick="sortTable('users', 'is_active')">Status</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="usersTableBody">
-                        <tr><td colspan="5" class="loading"><div class="spinner"></div>Loading users...</td></tr>
+                        <tr><td colspan="6" class="loading"><div class="spinner"></div>Loading users...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1610,7 +1612,39 @@
                 </div>
             </div>
 
-            <!-- Authentication & Security Section -->
+            <!-- Seerr Anime Overrides -->
+            <div style="background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+                <h3 style="margin-bottom: 10px; color: #e5a00d;">🎌 Seerr Anime Routing</h3>
+                <p style="color: #999; margin-bottom: 15px; font-size: 13px; line-height: 1.6;">
+                    When using Request on Behalf, BingeAlert auto-detects anime (Animation genre + Japanese origin) and routes it to your anime Sonarr instance in Seerr. Configure the server and profile IDs below.
+                </p>
+                
+                <div style="margin-bottom: 15px;">
+                    <button onclick="discoverSeerrServers()" class="action-btn" style="margin-bottom: 10px;">🔍 Discover Seerr Sonarr Servers</button>
+                    <div id="seerr-servers-result" style="display: none; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 12px; color: #ccc; max-height: 200px; overflow-y: auto;"></div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Anime Server ID</label>
+                        <input type="number" id="config-seerr-anime-server-id" placeholder="e.g. 2" 
+                               style="width: 100%; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #e4e4e4;">
+                    </div>
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Profile ID</label>
+                        <input type="number" id="config-seerr-anime-profile-id" placeholder="e.g. 6" 
+                               style="width: 100%; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #e4e4e4;">
+                    </div>
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Root Folder (optional)</label>
+                        <input type="text" id="config-seerr-anime-root-folder" placeholder="/data/media/anime" 
+                               style="width: 100%; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #e4e4e4;">
+                    </div>
+                </div>
+                <small style="color: #666; font-size: 11px;">Leave blank to use Seerr's default routing. Use "Discover" to find the correct IDs.</small>
+            </div>
+
+            <!-- Reconciliation & Issue Cleanup -->
             <div style="background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 12px; margin-bottom: 20px;">
                 <h3 style="margin-bottom: 10px; color: #e5a00d;">🔄 Reconciliation & Issue Cleanup</h3>
                 <p style="color: #999; margin-bottom: 20px; font-size: 13px; line-height: 1.6;">
@@ -1864,6 +1898,29 @@
                     </div>
                 </div>
 
+                <!-- Sonarr Anime (Optional) -->
+                <div style="background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 12px;">
+                    <h3 style="margin-bottom: 10px; color: #e5a00d;">🎌 Sonarr Anime <span style="font-size: 11px; color: #666; font-weight: normal;">(Optional)</span></h3>
+                    <p style="color: #666; font-size: 11px; margin-bottom: 15px;">Second Sonarr instance for anime — leave blank if not used</p>
+                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 12px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">IP Address / Hostname</label>
+                            <input type="text" id="config-sonarr-anime-host" placeholder="192.168.1.100 or sonarr-anime" 
+                                   style="width: 100%; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #e4e4e4;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Port</label>
+                            <input type="number" id="config-sonarr-anime-port" placeholder="8990" 
+                                   style="width: 100%; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #e4e4e4;">
+                        </div>
+                    </div>
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">API Key</label>
+                        <input type="password" id="config-sonarr-anime-api" placeholder="••••••••" 
+                               style="width: 100%; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #e4e4e4;">
+                    </div>
+                </div>
+
                 <!-- Radarr -->
                 <div style="background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 12px;">
                     <h3 style="margin-bottom: 10px; color: #e5a00d;">🎥 Radarr</h3>
@@ -2049,7 +2106,17 @@
                 
                 console.log('Stats loaded:', data);
                 
-                document.getElementById('totalUsers').textContent = data.users || 0;
+                document.getElementById('totalUsers').textContent = data.active_users != null ? data.active_users : (data.users || 0);
+                
+                // Show inactive count if any
+                const inactiveNote = document.getElementById('inactiveUsersNote');
+                if (data.inactive_users > 0) {
+                    inactiveNote.textContent = `+${data.inactive_users} inactive`;
+                    inactiveNote.style.display = 'block';
+                } else {
+                    inactiveNote.style.display = 'none';
+                }
+                
                 document.getElementById('totalRequests').textContent = data.requests.total || 0;
                 document.getElementById('trackingRequests').textContent = data.requests.tracking || 0;
                 document.getElementById('episodesTracked').textContent = data.episodes_tracked || 0;
@@ -2072,7 +2139,28 @@
                 renderUsers(allUsers);
             } catch (error) {
                 console.error('Failed to load users:', error);
-                document.getElementById('usersTableBody').innerHTML = '<tr><td colspan="5" class="empty-state">Failed to load users</td></tr>';
+                document.getElementById('usersTableBody').innerHTML = '<tr><td colspan="6" class="empty-state">Failed to load users</td></tr>';
+            }
+        }
+
+        async function toggleUserActive(userId, username, currentlyActive) {
+            const action = currentlyActive ? 'deactivate' : 'reactivate';
+            if (!confirm(`${currentlyActive ? '⏸️' : '✅'} ${action.charAt(0).toUpperCase() + action.slice(1)} user "${username}"?\n\n${currentlyActive ? 'They will stop receiving notifications.' : 'They will start receiving notifications again.'}`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/users/${userId}/toggle-active`, { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showSuccess(data.message);
+                    await loadUsers();
+                } else {
+                    showError(data.detail || 'Failed to update user');
+                }
+            } catch (error) {
+                showError('Failed to update user: ' + error.message);
             }
         }
 
@@ -2133,17 +2221,25 @@
         function renderUsers(users) {
             const tbody = document.getElementById('usersTableBody');
             if (users.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div>No users found</div></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div>No users found</div></td></tr>';
                 return;
             }
             
             tbody.innerHTML = users.map(user => `
-                <tr>
+                <tr style="${user.is_active === false ? 'opacity: 0.55;' : ''}">
                     <td>${user.id}</td>
                     <td>${user.username}</td>
                     <td>${user.email}</td>
                     <td>${user.jellyseerr_id}</td>
-                    <td>${new Date(user.created_at).toLocaleString()}</td>
+                    <td>
+                        <span class="badge ${user.is_active === false ? 'declined' : 'available'}">${user.is_active === false ? 'Inactive' : 'Active'}</span>
+                        ${user.deactivated_at ? `<br><small style="color: var(--text-secondary); font-size: 0.75em;">Since ${new Date(user.deactivated_at).toLocaleDateString()}</small>` : ''}
+                    </td>
+                    <td>
+                        <button class="action-btn" onclick="toggleUserActive(${user.id}, '${escapeAttr(user.username)}', ${user.is_active !== false})" title="${user.is_active === false ? 'Reactivate user' : 'Deactivate user'}">
+                            ${user.is_active === false ? '✅ Activate' : '⏸️ Deactivate'}
+                        </button>
+                    </td>
                 </tr>
             `).join('');
         }
@@ -3422,6 +3518,14 @@
                 document.getElementById('config-sonarr-port').value = sonarr.port || '8989';
                 document.getElementById('config-sonarr-api').value = config.sonarr.api_key || '';
                 
+                // Populate Sonarr Anime fields (optional)
+                if (config.sonarr_anime && config.sonarr_anime.url) {
+                    const sonarrAnime = splitUrl(config.sonarr_anime.url);
+                    document.getElementById('config-sonarr-anime-host').value = sonarrAnime.host;
+                    document.getElementById('config-sonarr-anime-port').value = sonarrAnime.port || '8990';
+                    document.getElementById('config-sonarr-anime-api').value = config.sonarr_anime.api_key || '';
+                }
+                
                 // Populate Radarr fields
                 const radarr = splitUrl(config.radarr.url);
                 document.getElementById('config-radarr-host').value = radarr.host;
@@ -3441,6 +3545,13 @@
                 
                 // Populate Issue Auto-fix fields
                 document.getElementById('config-issue-autofix-mode').value = config.issue_autofix?.mode || 'manual';
+                
+                // Populate Seerr Anime Override fields
+                if (config.seerr_anime) {
+                    document.getElementById('config-seerr-anime-server-id').value = config.seerr_anime.server_id || '';
+                    document.getElementById('config-seerr-anime-profile-id').value = config.seerr_anime.profile_id || '';
+                    document.getElementById('config-seerr-anime-root-folder').value = config.seerr_anime.root_folder || '';
+                }
                 
                 // Populate Reconciliation fields
                 if (config.reconciliation) {
@@ -3544,6 +3655,10 @@
                         url: buildUrl('config-sonarr-host', 'config-sonarr-port'),
                         api_key: document.getElementById('config-sonarr-api').value
                     },
+                    sonarr_anime: {
+                        url: document.getElementById('config-sonarr-anime-host').value ? buildUrl('config-sonarr-anime-host', 'config-sonarr-anime-port') : '',
+                        api_key: document.getElementById('config-sonarr-anime-api').value
+                    },
                     radarr: {
                         url: buildUrl('config-radarr-host', 'config-radarr-port'),
                         api_key: document.getElementById('config-radarr-api').value
@@ -3559,6 +3674,11 @@
                     },
                     issue_autofix: {
                         mode: document.getElementById('config-issue-autofix-mode').value
+                    },
+                    seerr_anime: {
+                        server_id: document.getElementById('config-seerr-anime-server-id').value,
+                        profile_id: document.getElementById('config-seerr-anime-profile-id').value,
+                        root_folder: document.getElementById('config-seerr-anime-root-folder').value
                     },
                     reconciliation: {
                         interval_hours: parseInt(document.getElementById('config-recon-interval').value),
@@ -3688,7 +3808,7 @@
                 
                 const select = document.getElementById('addUserSelect');
                 populateCustomSelect('addUser', 
-                    allUsers.map(user => ({ value: user.id, label: `${user.username} (${user.email})` })),
+                    allUsers.filter(user => user.is_active !== false).map(user => ({ value: user.id, label: `${user.username} (${user.email})` })),
                     'Select a user...'
                 );
                 
@@ -3791,6 +3911,39 @@
         let currentRequestId = null;
         let currentRequestTitle = null;
 
+        async function discoverSeerrServers() {
+            const resultDiv = document.getElementById('seerr-servers-result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<span style="color: #999;">🔍 Fetching servers from Seerr...</span>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/seerr-sonarr-servers`);
+                const data = await response.json();
+                
+                if (!data.success || !data.servers || data.servers.length === 0) {
+                    resultDiv.innerHTML = '<span style="color: #ff6b6b;">No Sonarr servers found in Seerr. Make sure Sonarr is configured in Seerr settings.</span>';
+                    return;
+                }
+                
+                let html = '<strong style="color: #4caf50;">Found ' + data.servers.length + ' Sonarr server(s):</strong><br><br>';
+                data.servers.forEach(s => {
+                    const isDefault = s.isDefault ? ' <span style="color: #4caf50;">★ Default</span>' : '';
+                    const is4k = s.is4k ? ' <span style="color: #e5a00d;">4K</span>' : '';
+                    html += `<div style="padding: 8px; margin-bottom: 6px; background: rgba(255,255,255,0.05); border-radius: 6px; cursor: pointer;" onclick="document.getElementById('config-seerr-anime-server-id').value='${s.id}'; document.getElementById('config-seerr-anime-profile-id').value='${s.activeProfileId || ''}'; document.getElementById('config-seerr-anime-root-folder').value='${s.activeDirectory || ''}'; showSuccess('Applied: ${(s.name || '').replace(/'/g, '')}');">`;
+                    html += `<strong>${s.name || 'Unnamed'}</strong>${isDefault}${is4k}<br>`;
+                    html += `<span style="color: #888;">ID: <strong style="color: #4caf50;">${s.id}</strong> · ${s.hostname}:${s.port}</span><br>`;
+                    if (s.activeProfileName) html += `<span style="color: #888;">Profile: ${s.activeProfileName} (ID: ${s.activeProfileId})</span><br>`;
+                    if (s.activeDirectory) html += `<span style="color: #888;">Root: ${s.activeDirectory}</span>`;
+                    html += '</div>';
+                });
+                html += '<small style="color: #666;">Click a server to auto-fill the fields above.</small>';
+                resultDiv.innerHTML = html;
+                
+            } catch (error) {
+                resultDiv.innerHTML = '<span style="color: #ff6b6b;">Failed to fetch servers: ' + error.message + '</span>';
+            }
+        }
+
         // Request on Behalf Modal Functions
         async function openRequestOnBehalfModal() {
             // Show modal
@@ -3807,12 +3960,13 @@
                 }
                 
                 console.log('Populating dropdown with', allUsers.length, 'users');
+                const activeUsers = allUsers.filter(user => user.is_active !== false);
                 populateCustomSelect('requestBehalf',
-                    allUsers.map(user => ({ value: user.jellyseerr_id, label: `${user.username} (${user.email})` })),
+                    activeUsers.map(user => ({ value: user.jellyseerr_id, label: `${user.username} (${user.email})` })),
                     'Select a user...'
                 );
                     
-                console.log('Dropdown populated with', allUsers.length, 'users');
+                console.log('Dropdown populated with', activeUsers.length, 'active users');
             } catch (error) {
                 console.error('Failed to load users:', error);
                 showError('Failed to load users: ' + error.message);
@@ -3866,7 +4020,7 @@
                 }
                 
                 const result = await response.json();
-                showSuccess('Request created successfully!');
+                showSuccess(result.message || 'Request created successfully!');
                 closeRequestOnBehalfModal();
                 loadRequests(); // Refresh
             } catch (error) {

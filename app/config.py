@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     sonarr_url: str
     sonarr_api_key: str
     
+    # Sonarr Anime (Optional second instance)
+    sonarr_anime_url: Optional[str] = None
+    sonarr_anime_api_key: Optional[str] = None
+    
     # Radarr
     radarr_url: str
     radarr_api_key: str
@@ -44,6 +48,11 @@ class Settings(BaseSettings):
     
     # Issue Auto-fix: 'manual', 'auto', 'auto_notify'
     issue_autofix_mode: str = "manual"  # manual = admin reviews, auto = auto blacklist+research, auto_notify = auto + email admin
+    
+    # Seerr Anime Overrides (for request-on-behalf routing to anime Sonarr)
+    seerr_anime_server_id: Optional[int] = None  # Seerr's internal server ID for the anime Sonarr instance
+    seerr_anime_profile_id: Optional[int] = None  # Quality profile ID to use for anime requests
+    seerr_anime_root_folder: Optional[str] = None  # Root folder path for anime (e.g., /data/media/anime)
     
     # Application
     app_secret_key: str
